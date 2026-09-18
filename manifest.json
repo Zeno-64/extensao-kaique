@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "ZapFlow - Respostas Rápidas, Agendamento e Envio em Massa",
+  "short_name": "ZapFlow",
+  "version": "1.0.0",
+  "description": "Respostas rápidas com categorias, mensagens agendadas e envio em massa no WhatsApp Web.",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "unlimitedStorage", "alarms", "notifications"],
+  "host_permissions": ["https://web.whatsapp.com/*"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "action": {
+    "default_title": "ZapFlow (abrir/fechar painel)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["src/bridge.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": [
+        "src/content/util.js",
+        "src/content/store.js",
+        "src/content/whatsapp.js",
+        "src/content/runner.js",
+        "src/content/ui.js",
+        "src/content/tab-replies.js",
+        "src/content/tab-schedules.js",
+        "src/content/tab-bulk.js",
+        "src/content/tab-settings.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/panel.css"],
+      "matches": ["https://web.whatsapp.com/*"]
+    }
+  ]
+}
