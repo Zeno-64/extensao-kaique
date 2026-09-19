@@ -289,6 +289,19 @@
     await waitPendingClear(90000);
   }
 
+  /** Nome da assinatura (Configurações): o personalizado ou o nome do perfil do WhatsApp; '' = sem assinatura */
+  let profileName = null;
+  async function signatureName(settings) {
+    if (!settings || !settings.signature) return '';
+    const custom = String(settings.signatureName || '').trim();
+    if (settings.signatureCustom && custom) return custom;
+    if (!profileName) {
+      const r = await bridge('me', {}, 3000);
+      profileName = (r && r.ok && r.name) || '';
+    }
+    return profileName;
+  }
+
   /** Envia uma sequência de blocos (já renderizados) na conversa aberta */
   async function sendBlocks(blocks) {
     const list = blocks.filter(ZF.blockHasContent);
@@ -303,6 +316,7 @@
   async function insertBlocks(blocks) {
     const box = getCompose();
     if (!box) throw new Error('Abra uma conversa primeiro');
+    blocks = ZF.signBlocks(blocks, await signatureName((ZF.ui && ZF.ui.settings) || (await ZF.store.settings())));
     const texts = blocks.filter((b) => (b.type === 'text' && b.text.trim()) || b.type === 'vcard').map((b) => (b.type === 'vcard' ? ZF.vcardText(b) : b.text));
     const files = blocks.filter((b) => b.type === 'file');
     if (texts.length) {
@@ -433,7 +447,7 @@
    * Retorna {ok, usedUi, prevChat} | {ok:false, invalid} | {ok:false, needReload, remaining}.
    */
   async function deliver(target, blocks, settings = {}, { isOpen = false } = {}) {
-    const list = blocks.filter(ZF.blockHasContent);
+    const list = ZF.signBlocks(blocks.filter(ZF.blockHasContent), await signatureName(settings));
     if (!list.length) throw new Error('Mensagem vazia');
     // isOpen: o destino já é a conversa aberta — o caminho pela interface não precisa abrir nada
     let ui = isOpen ? { prevChat: null } : null;
@@ -511,7 +525,7 @@
     SEL, qs, qsa, waitFor, visible, bridge, call,
     isReady, getCompose, headerTitle, activeChatInfo,
     insertText, sendText, sendFile, sendBlocks, insertBlocks,
-    openChatUI, openChatViaLink, openChatByLink, deliver,
+    openChatUI, openChatViaLink, openChatByLink, deliver, signatureName,
     waitChatAfterNavigation, waitPendingClear, diagnostics,
   };
 })();

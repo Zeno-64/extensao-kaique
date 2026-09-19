@@ -122,6 +122,41 @@ let err = null;
 try { await ZF.store.importAll({ foo: 1 }, 'merge'); } catch (e) { err = e.message; }
 eq('importar arquivo errado', err, 'Arquivo de backup inválido');
 
+/* ---------------- backup parcial ("Selecione o conteúdo") ---------------- */
+await chrome.storage.local.clear();
+await chrome.storage.local.set({
+  settings: { panelOpen: true },
+  replies: [{ id: 'r1', title: 'Oi', actions: [{ id: 'a', type: 'image', fileId: 'f1' }] }],
+  categories: [{ id: 'c1', name: 'Consultas' }],
+  schedules: [{ id: 's1', status: 'pending', blocks: [{ type: 'file', fileId: 'f2' }] }],
+  crmTags: [{ id: 't1', name: 'Pacientes' }],
+  crmChats: { k1: { name: 'Ana', tags: ['t1'], notes: [{ id: 'n1' }] }, k2: { name: 'Bia', tags: ['t1'], notes: [] } },
+  'file:f1': { id: 'f1', data: 'data:,1' },
+  'file:f2': { id: 'f2', data: 'data:,2' },
+});
+const onlyReplies = await ZF.store.exportAll(['replies']);
+eq('parcial: só respostas e o arquivo delas', [onlyReplies.parts, Object.keys(onlyReplies.data).sort()], [['replies'], ['categories', 'file:f1', 'replies']]);
+const onlyNotes = await ZF.store.exportAll(['notes']);
+eq('parcial: notas sem as abas', onlyNotes.data.crmChats, { k1: { name: 'Ana', tags: [], notes: [{ id: 'n1' }] } });
+eq('parcial: resumo mostra só o escolhido', B.describe(onlyReplies).text, '1 resposta rápida');
+eq('parcial: nomes das partes', B.describe(onlyNotes).partial, ['Notas']);
+
+// substituir com backup parcial troca só aquelas partes
+await chrome.storage.local.set({ replies: [{ id: 'rX', title: 'Outra', actions: [] }], crmChats: { k1: { name: 'Ana', tags: ['t1'], notes: [{ id: 'n9' }] } } });
+await ZF.store.importAll(onlyReplies, 'replace');
+await ZF.store.importAll(onlyNotes, 'replace');
+const after = await chrome.storage.local.get(null);
+eq('parcial substituir: respostas trocadas', after.replies.map((r) => r.id), ['r1']);
+eq('parcial substituir: resto intacto', [after.crmTags.length, after.schedules.length, !!after['file:f2']], [1, 1, true]);
+eq('parcial substituir: notas trocadas, abas mantidas', after.crmChats.k1, { name: 'Ana', tags: ['t1'], notes: [{ id: 'n1' }] });
+
+/* ---------------- assinatura ---------------- */
+const txt = [{ type: 'text', text: 'Olá!' }, { type: 'text', text: 'Tudo bem?' }];
+eq('assinatura no primeiro texto', ZF.signBlocks(txt, 'Kaique').map((b) => b.text), ['*Kaique:*\nOlá!', 'Tudo bem?']);
+eq('assinatura não repete', ZF.signBlocks(ZF.signBlocks(txt, 'Kaique'), 'Kaique')[0].text, '*Kaique:*\nOlá!');
+eq('sem nome não assina', ZF.signBlocks(txt, ' ')[0].text, 'Olá!');
+eq('só arquivo: sem assinatura', ZF.signBlocks([{ type: 'file', fileId: 'x' }], 'Kaique'), [{ type: 'file', fileId: 'x' }]);
+
 if (fails) {
   console.log(`\n${fails} teste(s) falharam`);
   process.exit(1);

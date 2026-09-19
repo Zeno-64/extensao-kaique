@@ -26,8 +26,15 @@
     aiInstructions: '',
     aiLanguage: 'inglês',
     dock: true, // botões flutuantes na lateral do WhatsApp
-    dockSide: 'right', // lado dos botões flutuantes: 'right' | 'left' (também muda arrastando)
+    dockSide: 'right', // lado de referência dos botões flutuantes: 'right' | 'left'
+    dockX: 14, // distância até esse lado da área do WhatsApp, em px (muda arrastando)
     dockBottom: null, // distância da parte de baixo da tela, em px (null = padrão)
+    rail: true, // barra fixa à esquerda do WhatsApp (atalhos do ZapFlow)
+    hideMonitor: false, // esconde a linha de status dos envios automáticos no painel
+    signature: false, // assina as mensagens enviadas pelo ZapFlow com *Nome:*
+    signatureCustom: false, // usa signatureName em vez do nome do perfil do WhatsApp
+    signatureName: '',
+    theme: 'auto', // 'auto' (igual ao WhatsApp) | 'light' | 'dark'
     topBar: true, // barra de abas/etiquetas no topo
     barMode: 'tabs', // 'tabs' (abas do CRM) | 'labels' (etiquetas do WhatsApp)
     backupFreq: 'monthly', // backup automático enviado ao próprio WhatsApp: 'monthly' | 'weekly' | 'off'
@@ -48,6 +55,26 @@
   // chaves que nunca vão para o backup (a chave da API da IA fica só neste navegador)
   const PRIVATE_KEYS = ['runner', 'runnerLock', 'aiKey', 'backupState'];
 
+  // Partes que dá para escolher no backup. "crm": parte dos dados de cada conversa (crmChats)
+  const PARTS = {
+    replies: { label: 'Respostas rápidas e scripts', icon: 'zap', keys: ['replies', 'categories'] },
+    schedules: { label: 'Agendamentos', icon: 'calendarClock', keys: ['schedules'] },
+    notes: { label: 'Notas', icon: 'clipboardEdit', crm: 'notes' },
+    tabs: { label: 'Abas do CRM (e a ordem delas)', icon: 'folderArrow', keys: ['crmTags'], crm: 'tags' },
+    campaigns: { label: 'Envio em massa', icon: 'send', keys: ['campaigns'] },
+    reminders: { label: 'Lembretes', icon: 'alarm', keys: ['reminders'] },
+    settings: { label: 'Configurações (inclui o backup automático)', icon: 'settings', keys: ['settings'] },
+  };
+
+  /** Ids dos arquivos usados por respostas (ações), agendamentos e campanhas (blocos) */
+  const fileIdsIn = (list, ids = new Set()) => {
+    (list || []).forEach((item) => [item.blocks, item.actions].forEach((arr) => (arr || []).forEach((b) => {
+      if (b.fileId) ids.add(b.fileId);
+      if (b.linkPreview && b.linkPreview.thumbFileId) ids.add(b.linkPreview.thumbFileId);
+    })));
+    return ids;
+  };
+
   // Fila por chave para evitar escritas concorrentes dentro desta aba
   const locks = {};
   const withLock = (key, fn) => {
@@ -59,6 +86,7 @@
 
   const store = {
     DEFAULT_SETTINGS,
+    PARTS,
 
     async get(key) {
       const r = await chrome.storage.local.get(key);
@@ -123,28 +151,62 @@
     async gcFiles() {
       const all = await chrome.storage.local.get(null);
       const used = new Set();
-      const scan = (blocks) => (blocks || []).forEach((b) => {
-        if (b.fileId) used.add(b.fileId);
-        if (b.linkPreview && b.linkPreview.thumbFileId) used.add(b.linkPreview.thumbFileId);
-      });
-      (all.replies || []).forEach((r) => { scan(r.blocks); scan(r.actions); });
-      (all.schedules || []).forEach((s) => scan(s.blocks));
-      (all.campaigns || []).forEach((c) => scan(c.blocks));
+      [all.replies, all.schedules, all.campaigns].forEach((list) => fileIdsIn(list, used));
       const drop = Object.keys(all).filter((k) => k.startsWith('file:') && !used.has(k.slice(5)));
       if (drop.length) await chrome.storage.local.remove(drop);
       return drop.length;
     },
 
     /* ----- backup ----- */
-    async exportAll() {
+    /** Backup completo; com parts (ex.: ['replies','tabs']) leva só essas partes e os arquivos que elas usam */
+    async exportAll(parts = null) {
       const all = await chrome.storage.local.get(null);
       PRIVATE_KEYS.forEach((k) => delete all[k]);
-      return { app: 'ZapFlow', version: 2, exportedAt: new Date().toISOString(), data: all };
+      const exportedAt = new Date().toISOString();
+      if (!parts) return { app: 'ZapFlow', version: 2, exportedAt, data: all };
+      const sel = Object.keys(PARTS).filter((p) => parts.includes(p));
+      const data = {};
+      sel.forEach((p) => (PARTS[p].keys || []).forEach((k) => { if (all[k] !== undefined) data[k] = all[k]; }));
+      const crm = sel.map((p) => PARTS[p].crm).filter(Boolean);
+      if (crm.length && all.crmChats) {
+        data.crmChats = {};
+        Object.entries(all.crmChats).forEach(([k, c]) => {
+          const out = { ...c, tags: crm.includes('tags') ? c.tags || [] : [], notes: crm.includes('notes') ? c.notes || [] : [] };
+          if (out.tags.length || out.notes.length) data.crmChats[k] = out;
+        });
+      }
+      fileIdsIn(data.replies).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
+      fileIdsIn(data.schedules).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
+      fileIdsIn(data.campaigns).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
+      return { app: 'ZapFlow', version: 2, exportedAt, parts: sel, data };
     },
     async importAll(json, mode = 'merge') {
       if (!json || json.app !== 'ZapFlow' || !json.data) throw new Error('Arquivo de backup inválido');
       const d = { ...json.data };
       PRIVATE_KEYS.forEach((k) => delete d[k]);
+      if (mode === 'replace' && Array.isArray(json.parts)) {
+        // backup parcial: troca só as partes que estão no arquivo
+        const parts = json.parts.filter((p) => PARTS[p]);
+        const out = {};
+        parts.forEach((p) => (PARTS[p].keys || []).forEach((k) => (out[k] = d[k] !== undefined ? d[k] : ZF.clone(DEFAULTS[k]))));
+        const crm = parts.map((p) => PARTS[p].crm).filter(Boolean);
+        if (crm.length) {
+          const cur = await store.get('crmChats');
+          const next = {};
+          new Set([...Object.keys(cur), ...Object.keys(d.crmChats || {})]).forEach((k) => {
+            const a = cur[k] || {}, b = (d.crmChats || {})[k] || {};
+            const rec = { ...a, ...b };
+            rec.tags = crm.includes('tags') ? b.tags || [] : a.tags || [];
+            rec.notes = crm.includes('notes') ? b.notes || [] : a.notes || [];
+            if (rec.tags.length || rec.notes.length) next[k] = rec;
+          });
+          out.crmChats = next;
+        }
+        Object.keys(d).filter((k) => k.startsWith('file:')).forEach((k) => (out[k] = d[k]));
+        await chrome.storage.local.set(out);
+        await store.migrate();
+        return;
+      }
       if (mode === 'replace') {
         const keep = await chrome.storage.local.get(['aiKey', 'backupState']);
         await chrome.storage.local.clear();

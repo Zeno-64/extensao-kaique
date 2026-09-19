@@ -29,6 +29,21 @@
     { key: 'reminders', icon: 'alarm', title: 'Lembretes', view: 'reminders' },
   ];
 
+  // Barra fixa à esquerda do WhatsApp (atalhos gerais, como no WaSpeed)
+  const RAIL = [
+    { key: 'kanban', icon: 'kanban', title: 'CRM — quadro de atendimento', run: () => ZF.topbar && ZF.topbar.openKanban() },
+    { key: 'bulk', icon: 'send', title: 'Envio em massa', view: 'bulk' },
+    { key: 'ai', icon: 'sparkles', title: 'Assistente IA', view: 'ai' },
+    { key: 'schedules', icon: 'calendar', title: 'Agendamentos', view: 'schedules' },
+    { key: 'replies', icon: 'zap', title: 'Respostas rápidas', view: 'replies' },
+    { key: 'crm', icon: 'contactCard', title: 'Contato e abas do CRM', view: 'crm' },
+    { key: 'notes', icon: 'clipboardEdit', title: 'Notas', view: 'notes' },
+    { key: 'gcal', icon: 'calendarDays', title: 'Google Agenda', run: () => ui.eventForActiveChat() },
+    { key: 'filter', icon: 'filter', title: 'Mostrar/ocultar a barra de abas', run: () => store.saveSettings({ topBar: !(ui.settings && ui.settings.topBar !== false) }) },
+    { key: 'reminders', icon: 'bell', title: 'Lembretes', view: 'reminders' },
+  ];
+  const RAIL_W = 56;
+
   /* ---------------- erros ---------------- */
   ui.errorMessage = (e) => {
     const msg = (e && e.message) || String(e);
@@ -70,13 +85,18 @@
     // lançador simples (só aparece se os botões flutuantes estiverem desligados)
     ui.launcher = h('button', { class: 'zf-launcher zf-keep', title: 'Abrir ZapFlow', onclick: () => ui.toggle(true) }, icon('zap', 20));
     ui.wrap.appendChild(ui.launcher);
+    ui.buildRail();
     ui.buildDock();
 
     ui.tabBtns = {};
     const top = h('div', { class: 'zf-top' },
       TOP.filter((name) => ui.tabs[name]).map((name) => {
         const t = ui.tabs[name];
-        const b = h('button', { class: 'zf-tab', title: t.title, onclick: () => ui.setTab(name) }, icon(t.icon, 20));
+        // a engrenagem abre o menu rápido ("Menu Lateral Configurações"); as demais trocam de aba
+        const b = h('button', {
+          class: 'zf-tab', title: t.title,
+          onclick: (e) => (name === 'settings' ? ui.quickSettings(e.currentTarget) : ui.setTab(name)),
+        }, icon(t.icon, 20));
         ui.tabBtns[name] = b;
         return b;
       }),
@@ -94,15 +114,19 @@
     layout.id = 'zapflow-layout';
     layout.textContent = [
       'html.zapflow-push #app{width:calc(100% - var(--zapflow-w,380px))!important;min-width:0!important;}',
+      'html.zapflow-rail #app{left:var(--zapflow-rail,56px)!important;width:calc(100% - var(--zapflow-rail,56px))!important;min-width:0!important;}',
+      'html.zapflow-rail.zapflow-push #app{width:calc(100% - var(--zapflow-w,380px) - var(--zapflow-rail,56px))!important;}',
       'html.zapflow-bar #app{top:var(--zapflow-bar-h,40px)!important;height:calc(100% - var(--zapflow-bar-h,40px))!important;min-height:0!important;}',
     ].join('\n');
     (document.head || document.documentElement).appendChild(layout);
 
     // Acompanha o tema claro/escuro do WhatsApp
     const syncTheme = () => {
-      const dark = document.body.classList.contains('dark') || document.documentElement.classList.contains('dark');
-      ui.wrap.classList.toggle('dark', dark);
+      const theme = (ui.settings && ui.settings.theme) || 'auto';
+      const waDark = document.body.classList.contains('dark') || document.documentElement.classList.contains('dark');
+      ui.wrap.classList.toggle('dark', theme === 'dark' || (theme === 'auto' && waDark));
     };
+    ui.syncTheme = syncTheme;
     syncTheme();
     new MutationObserver(syncTheme).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
@@ -118,7 +142,8 @@
 
     const settings = await store.settings();
     ui.settings = settings;
-    ui.current = settings.lastTab && ui.tabs[settings.lastTab] ? settings.lastTab : 'replies';
+    // Configurações abrem numa janela própria; o painel volta para as respostas
+    ui.current = settings.lastTab && ui.tabs[settings.lastTab] && settings.lastTab !== 'settings' ? settings.lastTab : 'replies';
     ui.applySettings(settings);
     ui.toggle(settings.panelOpen, false);
 
@@ -135,14 +160,16 @@
   };
 
   ui.applySettings = (s) => {
-    const w = Math.max(380, Math.min(560, Number(s.panelWidth) || 380));
+    const w = Math.max(380, Math.min(600, Number(s.panelWidth) || 380));
     ui.wrap.style.setProperty('--w', w + 'px');
     document.documentElement.style.setProperty('--zapflow-w', w + 'px');
     document.documentElement.classList.toggle('zapflow-push', !!(ui.open && s.pushLayout));
     ui.wrap.classList.toggle('zf-open', !!ui.open);
     if (ui.dock) ui.dock.style.display = s.dock === false ? 'none' : '';
     if (ui.launcher) ui.launcher.style.display = s.dock === false && !ui.open ? '' : 'none';
+    ui.applyRail(s);
     ui.placeDock(s);
+    if (ui.syncTheme) ui.syncTheme();
     ZF.emit('settings', s);
   };
 
@@ -238,20 +265,35 @@
     window.addEventListener('resize', () => ui.placeDock());
   };
 
-  /** Lado (direita/esquerda) e altura dos botões flutuantes, vindos das configurações */
+  /** Área do WhatsApp (sem a barra da esquerda e sem o painel): referência da posição dos botões */
+  const waArea = () => {
+    const left = ui.railShown ? RAIL_W : 0;
+    const w = Math.max(380, Math.min(600, Number((ui.settings || {}).panelWidth) || 380));
+    return { left, right: window.innerWidth - (ui.open ? w : 0) };
+  };
+
+  /**
+   * Posição dos botões flutuantes: lado de referência (direita/esquerda da área do WhatsApp),
+   * distância até esse lado e altura. Ficam onde foram soltos.
+   */
   ui.placeDock = (s = ui.settings || {}) => {
     if (!ui.dock) return;
     ui.wrap.classList.toggle('dock-left', s.dockSide === 'left');
+    // janela minimizada tem tamanho ~0: não limita (recalcula no próximo "resize")
+    const sized = window.innerHeight > 200 && window.innerWidth > 300;
+    const a = waArea();
+    let x = Number.isFinite(Number(s.dockX)) && s.dockX != null ? Number(s.dockX) : 14;
+    if (sized) x = Math.min(Math.max(0, x), Math.max(0, a.right - a.left - ui.dock.offsetWidth - 4));
+    ui.wrap.style.setProperty('--dock-x', Math.round(x) + 'px');
     const b = Number(s.dockBottom);
     if (s.dockBottom == null || !Number.isFinite(b)) { ui.dock.style.bottom = ''; return; }
-    // janela minimizada tem altura ~0: não limita (recalcula no próximo "resize")
-    const max = window.innerHeight > 200 ? Math.max(8, window.innerHeight - ui.dock.offsetHeight - 8) : Infinity;
+    const max = sized ? Math.max(8, window.innerHeight - ui.dock.offsetHeight - 8) : Infinity;
     ui.dock.style.bottom = Math.round(Math.min(Math.max(8, b), max)) + 'px';
   };
 
   /**
-   * Arrastar os botões flutuantes: segurar qualquer botão e mover. Ao soltar, encosta na
-   * borda mais próxima (esquerda ou direita) e guarda a altura. Um clique simples continua funcionando.
+   * Arrastar os botões flutuantes: segurar qualquer botão e mover. Ao soltar, ficam exatamente
+   * ali (guardando a distância até o lado mais próximo da área do WhatsApp). Um clique simples continua funcionando.
    */
   function enableDockDrag(dock) {
     let start = null;
@@ -288,13 +330,15 @@
       if (!was) return;
       draggedAt = Date.now();
       const r = dock.getBoundingClientRect();
-      const side = r.left + r.width / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      const a = waArea();
+      const side = r.left + r.width / 2 < (a.left + a.right) / 2 ? 'left' : 'right';
+      const x = Math.max(0, Math.round(side === 'left' ? r.left - a.left : a.right - r.right));
       const bottom = Math.max(8, Math.round(window.innerHeight - r.bottom));
       dock.classList.remove('dragging');
       ['left', 'top', 'right'].forEach((k) => (dock.style[k] = ''));
-      ui.settings = { ...(ui.settings || {}), dockSide: side, dockBottom: bottom };
+      ui.settings = { ...(ui.settings || {}), dockSide: side, dockX: x, dockBottom: bottom };
       ui.placeDock();
-      store.saveSettings({ dockSide: side, dockBottom: bottom });
+      store.saveSettings({ dockSide: side, dockX: x, dockBottom: bottom });
     };
     dock.addEventListener('pointerup', end);
     dock.addEventListener('pointercancel', end);
@@ -308,6 +352,61 @@
       const b = ui.dockBtns[d.key];
       if (b) b.classList.toggle('active', !!(d.view && ui.open && ui.current === d.view));
     });
+    RAIL.forEach((d) => {
+      const b = ui.railBtns[d.key];
+      if (b) b.classList.toggle('active', !!(d.view && ui.open && ui.current === d.view));
+    });
+  };
+
+  /* ---------------- barra fixa à esquerda ---------------- */
+  ui.railBtns = {};
+  // A lista da barra rola, então a dica azul fica fora dela (posição fixa ao lado do botão)
+  let railTip = null;
+  const showRailTip = (btn, text) => {
+    if (!railTip) { railTip = h('div', { class: 'zf-tip zf-rail-tip' }); ui.wrap.appendChild(railTip); }
+    const r = btn.getBoundingClientRect();
+    railTip.textContent = text;
+    railTip.style.left = r.right + 10 + 'px';
+    railTip.style.top = r.top + r.height / 2 + 'px';
+    railTip.classList.add('show');
+  };
+  const hideRailTip = () => { if (railTip) railTip.classList.remove('show'); };
+  const railButton = (d, onclick, cls = 'zf-rail-btn', size = 21) => h('button', {
+    class: cls, 'aria-label': d.title, onclick: ui.safe(async () => { hideRailTip(); await onclick(); }),
+    onmouseenter: (e) => showRailTip(e.currentTarget, d.title), onmouseleave: hideRailTip,
+  }, icon(d.icon, size));
+  ui.buildRail = () => {
+    const items = h('div', { class: 'zf-rail-items' });
+    RAIL.forEach((d) => {
+      const b = railButton(d, async () => {
+        if (d.view) {
+          if (ui.open && ui.current === d.view) ui.toggle(false);
+          else ui.openView(d.view);
+        } else await d.run();
+      });
+      ui.railBtns[d.key] = b;
+      items.appendChild(b);
+    });
+    const logo = railButton({ icon: 'logo', title: 'ZapFlow — abrir/fechar painel' }, () => ui.toggle(), 'zf-rail-logo', 24);
+    const gear = railButton({ icon: 'settings', title: 'Configurações' }, () => ui.openSettings());
+    ui.rail = h('div', { class: 'zf-rail zf-keep' }, logo, items,
+      h('div', { class: 'zf-rail-foot' }, gear, h('div', { class: 'zf-rail-ver' }, 'v' + chrome.runtime.getManifest().version)));
+    ui.wrap.appendChild(ui.rail);
+  };
+  /** Mostra a barra (e empurra o WhatsApp para a direita) só com o WhatsApp carregado */
+  ui.applyRail = (s = ui.settings || {}) => {
+    if (!ui.rail) return;
+    const show = s.rail !== false && !!(ZF.wa && ZF.wa.isReady());
+    ui.rail.style.display = show ? '' : 'none';
+    ui.wrap.classList.toggle('rail-on', show);
+    ui.wrap.style.setProperty('--rail-w', (show ? RAIL_W : 0) + 'px');
+    const root = document.documentElement;
+    root.style.setProperty('--zapflow-rail', RAIL_W + 'px');
+    root.classList.toggle('zapflow-rail', show);
+    if (show !== ui.railShown) {
+      ui.railShown = show;
+      window.dispatchEvent(new Event('resize'));
+    }
   };
 
   /** Google Agenda a partir da conversa aberta */
@@ -330,16 +429,22 @@
       if (old) old.remove();
       if (n > 0) b.appendChild(h('span', { class: 'zf-dot' }, n > 99 ? '99+' : n));
     };
-    setBadge(ui.dockBtns.schedules, schedules.filter((s) => s.status === 'failed').length);
-    setBadge(ui.tabBtns.bulk, campaigns.filter((c) => c.status === 'running').length);
-    setBadge(ui.dockBtns.reminders, reminders.filter((r) => r.status === 'pending' && r.dueAt <= Date.now()).length);
+    const failed = schedules.filter((s) => s.status === 'failed').length;
+    const running = campaigns.filter((c) => c.status === 'running').length;
+    const due = reminders.filter((r) => r.status === 'pending' && r.dueAt <= Date.now()).length;
+    setBadge(ui.dockBtns.schedules, failed);
+    setBadge(ui.railBtns.schedules, failed);
+    setBadge(ui.tabBtns.bulk, running);
+    setBadge(ui.railBtns.bulk, running);
+    setBadge(ui.dockBtns.reminders, due);
+    setBadge(ui.railBtns.reminders, due);
   });
 
   /* ---------------- barra de status ---------------- */
   ui.renderStatus = (st) => {
     if (!ui.statusEl) return;
     const el = ui.statusEl;
-    if (!st || st.phase === 'idle' || !st.text) {
+    if (!st || st.phase === 'idle' || !st.text || (ui.settings && ui.settings.hideMonitor)) {
       el.className = 'zf-status';
       return;
     }
@@ -519,6 +624,10 @@
     const inp = h('input', { type: 'checkbox', checked, onchange: (e) => onchange && onchange(e.target.checked) });
     return h('label', { class: 'zf-check' }, inp, h('span', {}, label));
   };
+  /** Interruptor liga/desliga (estilo dos prints) */
+  ui.switch = (checked, onchange, { title } = {}) => h('label', { class: 'zf-switch', title },
+    h('input', { type: 'checkbox', checked, onchange: (e) => onchange && onchange(e.target.checked) }),
+    h('span', { class: 'zf-switch-track' }));
   ui.badge = (status, label) => h('span', { class: 'zf-badge ' + status }, label);
 
   ui.insertAtCursor = (ta, text) => {

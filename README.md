@@ -4,12 +4,14 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 
 ## O que aparece no WhatsApp
 
+**Barra fixa à esquerda** (ao lado da barra de ícones do WhatsApp, que é empurrado para a direita): logo (abre/fecha o painel), CRM (quadro), envio em massa, IA, agendamentos, respostas rápidas, contato, notas, Google Agenda, mostrar/ocultar a barra de abas, lembretes e, embaixo, **Configurações**. Passe o mouse para ver o nome de cada botão. Dá para desligar em Configurações → Funcionalidades do Menu.
+
 **Barra de abas no topo:** as abas do CRM (ex.: *P. Antigos*, *Retomar Contato*, *Lead Orgânico*) com a contagem de conversas, mais *Não lidas*, *Favoritos* e *Grupos*. Clicar numa aba mostra só as conversas dela, por cima da lista do WhatsApp.
 - Ícone de funil: escolher entre **Abas** (do ZapFlow), **Etiquetas** (do WhatsApp) ou **Ocultar Exibição**.
 - 📁+ cria uma aba. ☰ abre o **quadro de atendimento** (Kanban) e o gerenciamento das abas.
 - Botão direito numa aba: editar, disparo em massa, exportar ou excluir.
 
-**Botões flutuantes na lateral** (de cima para baixo). Segure e arraste para mudar de lado (direita ou esquerda) ou de altura; também dá para escolher em Configurações → Barra de abas e botões.
+**Botões flutuantes** (de cima para baixo). Segure e arraste para **qualquer lugar da tela**: eles ficam exatamente onde você soltar (a posição é lembrada). "Voltar os botões para a posição padrão" fica em Configurações → Funcionalidades do Menu.
 
 | Botão | Faz |
 |---|---|
@@ -30,7 +32,16 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 | ⚡ **Respostas rápidas** | Categorias, busca e filtros (Tudo, Por Tipo, Sem Categoria, Por Categoria, Mais Usadas). O ⊞ cria **Respostas Rápidas**, **Scripts** e **Categorias** |
 | 📝 **Notas** | Notas da conversa aberta e busca em todas as notas |
 | 📥 **Disparos em massa** | Para lista colada, **planilha Excel/CSV**, conversas, **grupos**, **participantes de grupos**, **etiquetas do WhatsApp** e **abas do CRM** |
-| ⚙ **Configurações** | **Backup** (automático para o seu WhatsApp e importação), barra de abas e botões, envio, padrões dos disparos e **Diagnóstico** |
+| ⚙ | Abre o **Menu Lateral Configurações**: desabilitar o monitor de envios, assinatura nas mensagens, tamanho do painel e "Todas as configurações" |
+
+**Configurações** (engrenagem da barra da esquerda ou "Todas as configurações"): janela com as seções
+- **Geral**: modo escuro, **Criar backup do sistema** (escolhendo o conteúdo), **Importar backup**, **Backup automático**, Assistente IA e exportar contatos.
+- **Notificações**: avisos do Windows, monitor de envios, abrir o WhatsApp Web sozinho.
+- **Funcionalidades do Menu**: barra da esquerda, botões flutuantes, barra de abas no topo e painel (tamanho, empurrar o WhatsApp, clique na resposta rápida).
+- **Funcionalidades do Chat**: **assinatura**, envios (DDI, envio direto, voltar para a conversa, tolerância de atraso) e padrões do envio em massa.
+- **Diagnóstico**: testa a integração com o WhatsApp Web.
+
+**Assinatura:** com ela ligada, as mensagens que o ZapFlow envia ou coloca no campo (respostas rápidas, agendamentos, disparos e IA) começam com `*Seu nome:*`. O nome é o do seu perfil do WhatsApp ou um nome personalizado. Vem desligada.
 
 Tudo fica salvo **só no seu navegador** (`chrome.storage.local`). O único serviço externo é a API do Claude, e só se você ativar a IA.
 
@@ -96,7 +107,8 @@ Use **Configurações → Diagnóstico → Testar integração** para ver quais 
 Todo mês (ou toda semana), o ZapFlow manda um arquivo `zapflow-backup-AAAA-MM-DD.json` com tudo (respostas rápidas, scripts, abas, notas, agendamentos, lembretes, campanhas e arquivos) para a conversa **"Você"** do seu próprio WhatsApp. Configure em **Configurações → Backup**:
 - **Backup automático**: todo mês (padrão), toda semana ou desligado. O primeiro sai logo depois de instalar/atualizar. Se o computador estiver desligado na data, sai na próxima vez que o WhatsApp Web for aberto; se falhar, tenta de novo a cada hora (e avisa por notificação).
 - **Enviar para**: vazio = seu próprio número. Dá para colocar outro número (ex.: o celular da clínica).
-- **Enviar backup agora** e **Baixar** (salva o arquivo no computador).
+- **Enviar backup agora** e **Baixar tudo** (salva o arquivo no computador).
+- **Criar backup do sistema** abre "Selecione o conteúdo para realizar o backup": respostas rápidas, agendamentos, notas, abas do CRM, envio em massa, lembretes e configurações. Ao importar um backup parcial, "Substituir" troca só essas partes.
 - A chave da IA **não** vai para o backup.
 
 **Importar backup** (em outro computador ou depois de reinstalar): no WhatsApp, abra a conversa "Você", baixe o arquivo do backup e clique em **Importar backup** (ou arraste o arquivo para o quadro Backup). A tela mostra o que tem no arquivo e pergunta como importar:

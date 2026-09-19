@@ -154,6 +154,7 @@
     handleEl.style.display = ready && !show ? '' : 'none';
     // na tela de login (QR code) os botões flutuantes ficam escondidos
     if (ui.dock) ui.dock.classList.toggle('zf-hidden', !ready);
+    if (ui.applyRail) ui.applyRail();
     const root = document.documentElement;
     root.classList.toggle('zapflow-bar', show);
     root.style.setProperty('--zapflow-bar-h', BAR_H + 'px');
