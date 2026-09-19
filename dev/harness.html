@@ -218,7 +218,8 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
     } },
     WAWebContactCollection: { ContactCollection: { getModelsArray: () => contacts, get: (id) => contacts.find((c) => c.id._serialized === (id._serialized || id)) } },
     WAWebLabelCollection: { LabelCollection: {
-      getModelsArray: () => [{ id: 1, name: 'Novo cliente', hexColor: '#ff9900' }, { id: 2, name: 'Grupos VIP', hexColor: '#00aa55' }],
+      // formato real: só o índice da cor; listas automáticas (type 1 = Não lidas) não aparecem na extensão
+      getModelsArray: () => [{ id: 1, name: 'Novo cliente', colorIndex: 4, type: 5 }, { id: 2, name: 'Grupos VIP', colorIndex: 10, type: 5 }, { id: 3, name: 'Não lidas', colorIndex: 0, type: 1 }],
       addOrRemoveLabels: async (ops, list) => list.forEach((chat) => ops.forEach((o) => {
         chat.labels = o.type === 'add' ? [...new Set([...chat.labels, String(o.id)])] : chat.labels.filter((x) => x !== String(o.id));
         chatLog.push(['label', chat.formattedTitle, o.type, o.id]);
@@ -226,6 +227,7 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
     } },
     WAWebGroupMetadataCollection: { default: { get: (id) => groupMeta[id._serialized || id] } },
     WAWebLidMigrationUtils: { toPn: (wid) => (lidToPn[wid.user] ? { user: lidToPn[wid.user] } : null) },
+    WAWebListUtils: { colorIndexToHex: (i) => ['#EA0038', '#FF2E74', '#CB2910', '#C15ADD', '#FA6533', '#C0835D', '#FBEB1E', '#FFB938', '#DDCFBC', '#AFE966', '#25D366'][i] || '#EA0038' },
     WAWebUserPrefsMeUser: {
       getMaybeMePnUser: () => ({ _serialized: '5511900000001@c.us', user: '5511900000001', server: 'c.us' }),
       getMaybeMeLidUser: () => null,

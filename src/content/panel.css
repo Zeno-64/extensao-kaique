@@ -547,3 +547,17 @@ svg { flex-shrink: 0; }
 .zf-choice span { font-size: 12.5px; color: var(--muted); }
 .zf-list-plain { margin: 0 0 12px; padding-left: 18px; font-size: 13px; }
 .zf-list-plain li { margin: 2px 0; }
+
+/* ---------- v1.3: botões flutuantes móveis ---------- */
+.zf-dock { touch-action: none; user-select: none; }
+.zf-dock.dragging { transition: none; cursor: grabbing; opacity: .9; }
+.zf-dock.dragging .zf-tip { display: none; }
+.zf-dock.dragging .zf-dock-btn { transform: none; }
+.zf.dock-left .zf-dock, .zf.dock-left.zf-open .zf-dock { right: auto; left: 14px; }
+.zf.dock-left .zf-tip { right: auto; left: calc(100% + 12px); }
+.zf.dock-left .zf-tip::after { right: auto; left: -5px; }
+.zf.dock-left .zf-dock-btn:hover { transform: translateX(2px); }
+.zf.dock-left .zf-toasts { right: 20px; }
+.zf.dock-left.zf-open .zf-toasts { right: calc(var(--w) + 20px); }
+.zf.dock-left .zf-alerts { right: 20px; }
+.zf.dock-left:has(> .zf-panel) .zf-alerts { right: calc(var(--w) + 20px); }

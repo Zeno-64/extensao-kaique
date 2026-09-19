@@ -12,7 +12,8 @@
  * v1.2 (set/2026): WAWebMsgDataUtils + addAndSendTextMsg (cartão de contato), prepRawMedia asSticker,
  * LabelCollection.addOrRemoveLabels, WAWebPresenceChatAction, Cmd.archiveChat/pinChat,
  * WAWebUpdateUnreadChatAction, WAWebProfilePicThumbCollection.
- * v1.3 (set/2026): WAWebUserPrefsMeUser.getMaybeMePnUser / getMaybeMeLidUser (número da própria conta).
+ * v1.3 (set/2026): WAWebUserPrefsMeUser.getMaybeMePnUser / getMaybeMeLidUser (número da própria conta),
+ * WAWebLabelGetters.getHexColor / WAWebListUtils.colorIndexToHex (cor das etiquetas).
  * Se algo falhar, o content script cai para a automação pela interface.
  */
 (() => {
@@ -142,6 +143,35 @@
       return typeof url === 'string' && /^https:/.test(url) ? url : null;
     } catch (e) { return null; }
   }
+
+  /*
+   * Cor da etiqueta/lista: o modelo guarda só o índice (colorIndex). O WhatsApp converte com
+   * WAWebLabelGetters.getHexColor → WAWebListUtils.colorIndexToHex; a paleta abaixo é a de
+   * WAWebLabelPillColors (set/2026), usada se nenhum dos dois existir.
+   */
+  const LABEL_PALETTE = ['#EA0038', '#FF2E74', '#CB2910', '#C15ADD', '#FA6533', '#C0835D', '#FBEB1E', '#FFB938', '#DDCFBC', '#AFE966', '#25D366',
+    '#8A962E', '#D1C4FF', '#42C7B8', '#009DE2', '#B6D9FE', '#6A6C6C', '#FFABC7', '#7F66FF', '#025AB7', '#03776D', '#8D9599'];
+  const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v);
+  function labelColor(l) {
+    try {
+      const f = pick('WAWebLabelGetters', 'getHexColor');
+      const v = typeof f === 'function' ? f(l) : null;
+      if (isHex(v)) return v;
+    } catch (e) { /* ignora */ }
+    if (isHex(l.hexColor)) return l.hexColor;
+    if (isHex(l.color)) return l.color;
+    const idx = Number(l.colorIndex);
+    if (!Number.isInteger(idx) || idx < 0) return null;
+    try {
+      const f = pick('WAWebListUtils', 'colorIndexToHex');
+      const v = typeof f === 'function' ? f(idx) : null;
+      if (isHex(v)) return v;
+    } catch (e) { /* ignora */ }
+    return LABEL_PALETTE[idx % LABEL_PALETTE.length];
+  }
+  // Listas automáticas do WhatsApp (WAWebSchemaLabel.ListType): Não lidas, Grupos, Favoritos, Comunidades,
+  // Rascunhos, Canais, Menções — são filtros, não dá para colocar uma conversa nelas
+  const AUTO_LISTS = [1, 2, 3, 6, 8, 10, 17];
 
   function getActive() {
     const C = Chats();
@@ -414,13 +444,15 @@
         const ls = field('WAWebChatGetters', 'getLabels', c, 'labels');
         (Array.isArray(ls) ? ls : []).forEach((id) => { counts[String(id)] = (counts[String(id)] || 0) + 1; });
       });
-      const labels = models(L).map((l) => ({
-        id: String(l.id),
-        name: l.name || '',
-        color: l.hexColor || l.color || null,
-        type: l.type || null,
-        count: counts[String(l.id)] || l.chatCount || l.count || 0,
-      })).filter((l) => l.name);
+      const labels = models(L)
+        .filter((l) => l.name && l.isActive !== false && !AUTO_LISTS.includes(Number(l.type)))
+        .map((l) => ({
+          id: String(l.id),
+          name: l.name || '',
+          color: labelColor(l),
+          type: l.type == null ? null : l.type,
+          count: counts[String(l.id)] || l.chatCount || l.count || 0,
+        }));
       return { ok: true, labels };
     },
 

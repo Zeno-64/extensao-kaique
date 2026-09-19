@@ -118,7 +118,14 @@
           { value: 'tabs', label: 'Abas do CRM (ZapFlow)' },
           { value: 'labels', label: 'Etiquetas do WhatsApp' },
         ], s.barMode || 'tabs', { onchange: (e) => save({ barMode: e.target.value }) })),
-        ui.checkbox('Mostrar os botões flutuantes na lateral (IA, quadro, contato, agendamentos, agenda, notas, lembretes)', s.dock !== false, (v) => save({ dock: v }))),
+        ui.checkbox('Mostrar os botões flutuantes na lateral (IA, quadro, contato, agendamentos, agenda, notas, lembretes)', s.dock !== false, (v) => save({ dock: v })),
+        ui.field('Lado dos botões flutuantes', h('div', { class: 'zf-row', style: { gap: '6px', flexWrap: 'wrap' } },
+          ui.select([
+            { value: 'right', label: 'Direita' },
+            { value: 'left', label: 'Esquerda' },
+          ], s.dockSide === 'left' ? 'left' : 'right', { style: { width: 'auto' }, onchange: (e) => save({ dockSide: e.target.value }) }),
+          h('button', { class: 'zf-btn sm', onclick: () => save({ dockSide: 'right', dockBottom: null }) }, 'Posição padrão')),
+        'Você também pode segurar e arrastar os botões para o outro lado ou para outra altura.')),
 
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Painel'),

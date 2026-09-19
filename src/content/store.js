@@ -26,6 +26,8 @@
     aiInstructions: '',
     aiLanguage: 'inglês',
     dock: true, // botões flutuantes na lateral do WhatsApp
+    dockSide: 'right', // lado dos botões flutuantes: 'right' | 'left' (também muda arrastando)
+    dockBottom: null, // distância da parte de baixo da tela, em px (null = padrão)
     topBar: true, // barra de abas/etiquetas no topo
     barMode: 'tabs', // 'tabs' (abas do CRM) | 'labels' (etiquetas do WhatsApp)
     backupFreq: 'monthly', // backup automático enviado ao próprio WhatsApp: 'monthly' | 'weekly' | 'off'

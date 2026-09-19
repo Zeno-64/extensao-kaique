@@ -9,7 +9,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 - 📁+ cria uma aba. ☰ abre o **quadro de atendimento** (Kanban) e o gerenciamento das abas.
 - Botão direito numa aba: editar, disparo em massa, exportar ou excluir.
 
-**Botões flutuantes na lateral** (de cima para baixo):
+**Botões flutuantes na lateral** (de cima para baixo). Segure e arraste para mudar de lado (direita ou esquerda) ou de altura; também dá para escolher em Configurações → Barra de abas e botões.
 
 | Botão | Faz |
 |---|---|

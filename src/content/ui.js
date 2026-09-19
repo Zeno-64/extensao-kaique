@@ -142,6 +142,7 @@
     ui.wrap.classList.toggle('zf-open', !!ui.open);
     if (ui.dock) ui.dock.style.display = s.dock === false ? 'none' : '';
     if (ui.launcher) ui.launcher.style.display = s.dock === false && !ui.open ? '' : 'none';
+    ui.placeDock(s);
     ZF.emit('settings', s);
   };
 
@@ -221,18 +222,87 @@
       items.appendChild(b);
     });
     const logo = h('button', { class: 'zf-dock-logo', 'aria-label': 'Abrir/fechar ZapFlow', onclick: () => ui.toggle() },
-      icon('logo', 26), h('span', { class: 'zf-tip' }, 'ZapFlow — abrir/fechar painel'));
+      icon('logo', 26), h('span', { class: 'zf-tip' }, 'ZapFlow — abrir/fechar (arraste para mover)'));
     const mini = h('button', {
-      class: 'zf-dock-mini', title: 'Recolher/mostrar os botões',
+      class: 'zf-dock-mini', title: 'Recolher/mostrar os botões (arraste para mover)',
       onclick: () => {
         ui.dock.classList.toggle('collapsed');
         try { localStorage.setItem('zapflow-dock-collapsed', ui.dock.classList.contains('collapsed') ? '1' : ''); } catch (e) { /* ignora */ }
+        ui.placeDock();
       },
     }, icon('chevronDown', 14));
     ui.dock = h('div', { class: 'zf-dock zf-keep' }, mini, items, logo);
     try { if (localStorage.getItem('zapflow-dock-collapsed')) ui.dock.classList.add('collapsed'); } catch (e) { /* ignora */ }
     ui.wrap.appendChild(ui.dock);
+    enableDockDrag(ui.dock);
+    window.addEventListener('resize', () => ui.placeDock());
   };
+
+  /** Lado (direita/esquerda) e altura dos botões flutuantes, vindos das configurações */
+  ui.placeDock = (s = ui.settings || {}) => {
+    if (!ui.dock) return;
+    ui.wrap.classList.toggle('dock-left', s.dockSide === 'left');
+    const b = Number(s.dockBottom);
+    if (s.dockBottom == null || !Number.isFinite(b)) { ui.dock.style.bottom = ''; return; }
+    // janela minimizada tem altura ~0: não limita (recalcula no próximo "resize")
+    const max = window.innerHeight > 200 ? Math.max(8, window.innerHeight - ui.dock.offsetHeight - 8) : Infinity;
+    ui.dock.style.bottom = Math.round(Math.min(Math.max(8, b), max)) + 'px';
+  };
+
+  /**
+   * Arrastar os botões flutuantes: segurar qualquer botão e mover. Ao soltar, encosta na
+   * borda mais próxima (esquerda ou direita) e guarda a altura. Um clique simples continua funcionando.
+   */
+  function enableDockDrag(dock) {
+    let start = null;
+    let dragging = false;
+    let draggedAt = 0;
+    const clamp = (v, min, max) => Math.min(Math.max(v, min), Math.max(min, max));
+    dock.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      start = { x: e.clientX, y: e.clientY, rect: dock.getBoundingClientRect(), id: e.pointerId };
+      dragging = false;
+    });
+    dock.addEventListener('pointermove', (e) => {
+      if (!start || e.pointerId !== start.id) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (!dragging) {
+        if (Math.hypot(dx, dy) < 6) return;
+        dragging = true;
+        try { dock.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
+        dock.classList.add('dragging');
+        ui.closeMenu();
+      }
+      const r = start.rect;
+      dock.style.left = clamp(r.left + dx, 4, window.innerWidth - r.width - 4) + 'px';
+      dock.style.top = clamp(r.top + dy, 4, window.innerHeight - r.height - 4) + 'px';
+      dock.style.right = 'auto';
+      dock.style.bottom = 'auto';
+    });
+    const end = () => {
+      if (!start) return;
+      const was = dragging;
+      start = null;
+      dragging = false;
+      if (!was) return;
+      draggedAt = Date.now();
+      const r = dock.getBoundingClientRect();
+      const side = r.left + r.width / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      const bottom = Math.max(8, Math.round(window.innerHeight - r.bottom));
+      dock.classList.remove('dragging');
+      ['left', 'top', 'right'].forEach((k) => (dock.style[k] = ''));
+      ui.settings = { ...(ui.settings || {}), dockSide: side, dockBottom: bottom };
+      ui.placeDock();
+      store.saveSettings({ dockSide: side, dockBottom: bottom });
+    };
+    dock.addEventListener('pointerup', end);
+    dock.addEventListener('pointercancel', end);
+    // o clique que vem logo depois de arrastar não deve abrir nada
+    dock.addEventListener('click', (e) => {
+      if (Date.now() - draggedAt < 400) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+  }
   ui.renderDock = () => {
     DOCK.forEach((d) => {
       const b = ui.dockBtns[d.key];
