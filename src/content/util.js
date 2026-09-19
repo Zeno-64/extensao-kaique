@@ -174,6 +174,43 @@
     return { ...b, caption: r(b.caption) };
   });
   /** Bloco que tem conteúdo para enviar */
+  /**
+   * Próxima ocorrência de um agendamento que se repete, sempre no futuro.
+   * repeat: daily | weekdays | weekly | days (a cada everyDays dias) | monthly | yearly
+   */
+  ZF.nextOccurrence = (ts, repeat, anchorDay, everyDays, now = Date.now()) => {
+    const d = new Date(ts);
+    let guard = 0;
+    do {
+      if (repeat === 'daily') d.setDate(d.getDate() + 1);
+      else if (repeat === 'weekdays') {
+        do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6);
+      } else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
+      else if (repeat === 'days') d.setDate(d.getDate() + Math.max(1, Number(everyDays) || 1));
+      else if (repeat === 'yearly') d.setFullYear(d.getFullYear() + 1);
+      else if (repeat === 'monthly') {
+        const day = anchorDay || d.getDate();
+        d.setDate(1);
+        d.setMonth(d.getMonth() + 1);
+        const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(day, last));
+      } else return null;
+    } while (d.getTime() <= now && ++guard < 5000);
+    return d.getTime();
+  };
+  ZF.repeatLabel = (s) => {
+    const L = { daily: 'Todo dia', weekdays: 'Dias úteis', weekly: 'Toda semana', monthly: 'Todo mês', yearly: 'Todo ano' };
+    return s.repeat === 'days' ? `A cada ${Number(s.everyDays) || 1} dias` : L[s.repeat] || '';
+  };
+
+  /** Ordena etiquetas do WhatsApp pela ordem escolhida (settings.labelOrder); as demais vão para o fim */
+  ZF.sortLabels = (labels, order) => {
+    if (!Array.isArray(order) || !order.length) return labels;
+    const pos = new Map(order.map((id, i) => [String(id), i]));
+    return labels.map((l, i) => [l, pos.has(String(l.id)) ? pos.get(String(l.id)) : order.length + i])
+      .sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+  };
+
   /** Assinatura: coloca *Nome:* no começo do primeiro texto (uma vez só) */
   ZF.signBlocks = (blocks, name) => {
     const n = String(name || '').trim();

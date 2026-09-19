@@ -9,6 +9,7 @@
     daily: 'Todo dia',
     weekdays: 'Dias úteis (seg–sex)',
     weekly: 'Toda semana',
+    days: 'A cada X dias',
     monthly: 'Todo mês',
     yearly: 'Todo ano',
   };
@@ -87,6 +88,11 @@
     const quick = (label, fn) => h('button', { class: 'zf-varchip', onclick: (e) => { e.preventDefault(); when.value = ZF.toLocalInput(fn()); } }, label);
     const tomorrowAt = (hh) => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(hh, 0, 0, 0); return d.getTime(); };
     const repeat = ui.select(Object.entries(REPEAT).map(([value, label]) => ({ value, label })), sched ? sched.repeat || 'none' : 'none');
+    const everyDays = ui.input({ type: 'number', min: 1, max: 365, value: (sched && sched.everyDays) || 14, style: { width: '80px' } });
+    const everyBox = h('div', { class: 'zf-row', style: { gap: '6px', marginTop: '6px' } }, 'A cada', everyDays, 'dias');
+    const syncEvery = () => { everyBox.style.display = repeat.value === 'days' ? '' : 'none'; };
+    repeat.addEventListener('change', syncEvery);
+    syncEvery();
 
     const body = h('div', {},
       h('div', { class: 'zf-field' },
@@ -105,7 +111,7 @@
         quick('Amanhã 08:00', () => tomorrowAt(8)),
         quick('Amanhã 09:00', () => tomorrowAt(9)),
         quick('Amanhã 14:00', () => tomorrowAt(14))))),
-      ui.field('Repetir', repeat));
+      ui.field('Repetir', h('div', {}, repeat, everyBox)));
 
     renderTarget();
     if (!sched && defaults.useActiveChat) useActive();
@@ -146,6 +152,7 @@
             const rep = repeat.value;
             const rec = {
               target: t, blocks, vars, sendAt, repeat: rep,
+              everyDays: rep === 'days' ? Math.max(1, Math.min(365, Number(everyDays.value) || 1)) : null,
               anchorDay: new Date(sendAt).getDate(),
               status: 'pending', lastError: null, updatedAt: Date.now(),
             };
@@ -171,7 +178,7 @@
     await store.updateItem('schedules', s.id, (x) => {
       if (x.status === 'paused') {
         x.status = 'pending';
-        if (x.sendAt < Date.now() && x.repeat && x.repeat !== 'none') x.sendAt = ZF.runner.nextOccurrence(x.sendAt, x.repeat, x.anchorDay);
+        if (x.sendAt < Date.now() && x.repeat && x.repeat !== 'none') x.sendAt = ZF.runner.nextOccurrence(x.sendAt, x.repeat, x.anchorDay, x.everyDays);
       } else x.status = 'paused';
     });
   };
@@ -198,7 +205,7 @@
         ui.badge(s.status, STATUS[s.status] || s.status)),
       h('div', { class: 'zf-meta' },
         h('span', {}, icon('calendar', 13), ZF.fmtDateTime(ts), upcoming ? ` (${ZF.relTime(ts)})` : ''),
-        repeats ? h('span', {}, icon('repeat', 13), REPEAT[s.repeat]) : null,
+        repeats ? h('span', {}, icon('repeat', 13), ZF.repeatLabel(s)) : null,
         s.target.phone && s.target.name ? h('span', {}, ZF.fmtPhone(s.target.phone)) : null),
       h('div', { class: 'zf-msg' }, ZF.blocksPreview(s.blocks, 140)),
       s.lastError && s.status !== 'sent' ? h('div', { class: 'zf-err' }, s.lastError) : null,

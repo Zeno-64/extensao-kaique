@@ -35,6 +35,7 @@
     signatureCustom: false, // usa signatureName em vez do nome do perfil do WhatsApp
     signatureName: '',
     theme: 'auto', // 'auto' (igual ao WhatsApp) | 'light' | 'dark'
+    labelOrder: [], // ordem das etiquetas do WhatsApp na barra e no cartão (ids; veio do WaSpeed)
     topBar: true, // barra de abas/etiquetas no topo
     barMode: 'tabs', // 'tabs' (abas do CRM) | 'labels' (etiquetas do WhatsApp)
     backupFreq: 'monthly', // backup automático enviado ao próprio WhatsApp: 'monthly' | 'weekly' | 'off'

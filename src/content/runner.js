@@ -59,26 +59,7 @@
   const saveCurrent = (current) => store.update('runner', (r) => ({ ...r, current }));
 
   /* ---------------- recorrência ---------------- */
-  function nextOccurrence(ts, repeat, anchorDay) {
-    const d = new Date(ts);
-    const now = Date.now();
-    let guard = 0;
-    do {
-      if (repeat === 'daily') d.setDate(d.getDate() + 1);
-      else if (repeat === 'weekdays') {
-        do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6);
-      } else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
-      else if (repeat === 'yearly') d.setFullYear(d.getFullYear() + 1);
-      else if (repeat === 'monthly') {
-        const day = anchorDay || d.getDate();
-        d.setDate(1);
-        d.setMonth(d.getMonth() + 1);
-        const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        d.setDate(Math.min(day, last));
-      } else return null;
-    } while (d.getTime() <= now && ++guard < 1000);
-    return d.getTime();
-  }
+  const nextOccurrence = (ts, repeat, anchorDay, everyDays) => ZF.nextOccurrence(ts, repeat, anchorDay, everyDays);
   runner.nextOccurrence = nextOccurrence;
 
   /* ---------------- finalização ---------------- */
@@ -91,7 +72,7 @@
       s.lastError = result.ok ? null : result.error || 'Falha no envio';
       const repeats = s.repeat && s.repeat !== 'none';
       if (repeats && (result.ok || result.missed)) {
-        s.sendAt = nextOccurrence(s.sendAt, s.repeat, s.anchorDay);
+        s.sendAt = nextOccurrence(s.sendAt, s.repeat, s.anchorDay, s.everyDays);
         s.status = 'pending';
       } else if (result.ok) {
         s.status = 'sent';

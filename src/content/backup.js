@@ -213,12 +213,13 @@
   }
 
   /* ---------------- importação ---------------- */
+  const NOT_BACKUP = (f) => new Error(`"${f.name}" não é um backup do ZapFlow nem do WaSpeed. Use o arquivo zapflow-backup….json ou o backup_….json do WaSpeed.`);
+  async function readJson(f) {
+    try { return JSON.parse(await ZF.readFileAsText(f)); } catch (e) { throw NOT_BACKUP(f); }
+  }
   async function readBackupFile(f) {
-    let json = null;
-    try { json = JSON.parse(await ZF.readFileAsText(f)); } catch (e) { /* inválido */ }
-    if (!json || json.app !== 'ZapFlow' || !json.data || typeof json.data !== 'object') {
-      throw new Error(`"${f.name}" não é um backup do ZapFlow. Use o arquivo zapflow-backup….json.`);
-    }
+    const json = await readJson(f);
+    if (!json || json.app !== 'ZapFlow' || !json.data || typeof json.data !== 'object') throw NOT_BACKUP(f);
     return json;
   }
 
@@ -227,6 +228,8 @@
     const { h, icon, ui, store } = ZF;
     const f = file || (await ZF.pickFile('.json,application/json'));
     if (!f) return false;
+    const raw = await readJson(f);
+    if (ZF.waspeed && ZF.waspeed.isWaSpeed(raw)) return importWaSpeed(raw, f);
     const json = await readBackupFile(f);
     const info = describe(json);
 
@@ -272,6 +275,82 @@
               await store.importAll(json, mode);
               done = true;
               ui.toast(mode === 'replace' ? 'Backup restaurado' : 'Backup juntado com os dados atuais', 'ok', 3500);
+              ui.rerender();
+              resolve(true);
+            },
+          },
+        ],
+      });
+    });
+  }
+
+  /**
+   * Backup do WaSpeed: converte o que é legível (respostas rápidas, arquivos, agendamentos, ordem das
+   * etiquetas) e junta com os dados atuais. Os agendamentos entram pausados, a não ser que o usuário
+   * escolha o contrário — assim ninguém recebe mensagem em dobro enquanto o WaSpeed estiver instalado.
+   */
+  async function importWaSpeed(raw, f) {
+    const { h, icon, ui, store } = ZF;
+    // nomes das conversas (para {nome} e {primeiro_nome} dos agendamentos)
+    const names = new Map();
+    if (ZF.wa.isReady()) {
+      const r = await ZF.wa.bridge('listChats', {}, 20000);
+      ((r && r.ok && r.chats) || []).forEach((c) => {
+        if (!c.name) return;
+        if (c.phone) names.set(ZF.onlyDigits(c.phone), c.name);
+        if (c.chatId) names.set(c.chatId, c.name);
+      });
+    }
+    const preview = ZF.waspeed.convert(raw, { names });
+    const rep = preview.report;
+    if (!rep.replies && !rep.schedules) throw new Error('Não encontrei respostas rápidas nem agendamentos legíveis neste backup do WaSpeed.');
+    const mb = Object.keys(preview.backup.data).filter((k) => k.startsWith('file:'))
+      .reduce((n, k) => n + (preview.backup.data[k].size || 0), 0) / 1048576;
+
+    const choice = (value, title, text, checked) => h('label', { class: 'zf-choice' },
+      h('input', { type: 'radio', name: 'zf-ws-sched', value, checked }),
+      h('div', {}, h('b', {}, title), h('span', {}, text)));
+    const paused = choice('paused', 'Importar pausados (recomendado)', 'Ficam em Agendamentos como "Pausado". Apague no WaSpeed e clique em Retomar em cada um — assim o paciente não recebe a mensagem duas vezes.', true);
+    const active = choice('active', 'Importar já ativos', 'Use só se os agendamentos já foram apagados ou parados no WaSpeed.', false);
+    const li = (t) => h('li', {}, t);
+    const body = h('div', {},
+      h('div', { class: 'zf-note info' }, icon('download', 15), h('div', {},
+        h('div', {}, h('b', {}, f.name)),
+        h('div', {}, 'Backup do WaSpeed'))),
+      h('div', { class: 'zf-h3' }, 'O que vai ser importado'),
+      h('ul', { class: 'zf-list-plain' },
+        rep.replies ? li(`${rep.replies} respostas rápidas, na categoria "Importadas do WaSpeed" (com "aguarde", "digitando…" e etiquetas)`) : null,
+        rep.files ? li(`${rep.files} ${rep.files === 1 ? 'arquivo' : 'arquivos'} (${mb.toFixed(1)} MB) — imagens e PDFs das respostas`) : null,
+        rep.schedules ? li(`${rep.schedules} agendamentos (próximos envios, com a mesma repetição)`) : null,
+        rep.labelOrder ? li('Ordem das etiquetas do WhatsApp') : null),
+      h('div', { class: 'zf-h3' }, 'O que não dá para trazer'),
+      h('ul', { class: 'zf-list-plain' },
+        rep.encrypted.length ? li(`O WaSpeed guarda criptografados: ${rep.encrypted.join(', ')}. Por isso cada resposta ganha um título tirado do próprio texto (dá para renomear depois).`) : null,
+        rep.history ? li(`${rep.history} registros de envios antigos (histórico do WaSpeed).`) : null,
+        rep.skippedPast ? li(`${rep.skippedPast} agendamento(s) que já passaram e não se repetem.`) : null),
+      rep.schedules ? h('div', { class: 'zf-h3' }, 'Agendamentos') : null,
+      rep.schedules ? paused : null,
+      rep.schedules ? active : null,
+      h('div', { class: 'zf-hint' }, 'Nada do que já está no ZapFlow é apagado. Importar o mesmo arquivo de novo não duplica nada.'));
+
+    return new Promise((resolve) => {
+      let done = false;
+      ui.modal({
+        title: 'Importar backup do WaSpeed',
+        global: true,
+        body,
+        onClose: () => { if (!done) resolve(false); },
+        actions: [
+          { label: 'Cancelar' },
+          {
+            label: 'Importar', class: 'primary', icon: 'upload',
+            onClick: async () => {
+              const activeSchedules = !!active.querySelector('input').checked;
+              const { backup } = ZF.waspeed.convert(raw, { names, activeSchedules });
+              await store.importAll(backup, 'merge');
+              if (rep.labelOrder) await store.saveSettings({ labelOrder: rep.labelOrder });
+              done = true;
+              ui.toast(`Importado do WaSpeed: ${rep.replies} respostas rápidas e ${rep.schedules} agendamentos`, 'ok', 5000);
               ui.rerender();
               resolve(true);
             },

@@ -111,6 +111,8 @@ Todo mês (ou toda semana), o ZapFlow manda um arquivo `zapflow-backup-AAAA-MM-D
 - **Criar backup do sistema** abre "Selecione o conteúdo para realizar o backup": respostas rápidas, agendamentos, notas, abas do CRM, envio em massa, lembretes e configurações. Ao importar um backup parcial, "Substituir" troca só essas partes.
 - A chave da IA **não** vai para o backup.
 
+**Importar do WaSpeed:** em Importar backup, escolha o arquivo `backup_….json` do WaSpeed. Vêm as respostas rápidas (com "aguarde", "digitando…", imagens, PDFs e etiquetas; variáveis `#primeiroNome` e `#periodo-dia` viram `{primeiro_nome}` e `{saudacao}`), os agendamentos ativos (com a repetição semanal ou a cada N dias) e a ordem das etiquetas. Os agendamentos entram **pausados** para ninguém receber a mensagem duas vezes: apague no WaSpeed e clique em **Retomar**. O WaSpeed criptografa títulos, categorias, abas e notas; por isso cada resposta ganha um título tirado do texto (na categoria "Importadas do WaSpeed").
+
 **Importar backup** (em outro computador ou depois de reinstalar): no WhatsApp, abra a conversa "Você", baixe o arquivo do backup e clique em **Importar backup** (ou arraste o arquivo para o quadro Backup). A tela mostra o que tem no arquivo e pergunta como importar:
 - **Juntar com os dados atuais** (recomendado): mantém o que já existe e adiciona o que falta.
 - **Substituir tudo**: deixa tudo igual ao backup. Antes, baixa uma cópia dos dados atuais por segurança.

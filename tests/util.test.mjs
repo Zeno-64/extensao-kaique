@@ -61,10 +61,8 @@ eq('csv header', p.contacts.map((c) => [c.phone, c.name, c.vars.horario]), [['55
 eq('csv columns', p.columns, ['nome', 'horario']);
 eq('toCSV quoting', ZF.toCSV([['a;b', 'c"d']]), '﻿"a;b";"c""d"');
 
-/* ---------------- recorrência (copiada do runner) ---------------- */
-const runnerSrc = read('content/runner.js');
-const fnSrc = runnerSrc.slice(runnerSrc.indexOf('function nextOccurrence'), runnerSrc.indexOf('runner.nextOccurrence ='));
-const withNow = (now) => vm.runInNewContext(`(${fnSrc})`, { Date: class extends Date { static now() { return now; } } });
+/* ---------------- recorrência (ZF.nextOccurrence, usada pelo runner) ---------------- */
+const withNow = (now) => (ts, repeat, anchorDay, everyDays) => ZF.nextOccurrence(ts, repeat, anchorDay, everyDays, now);
 const nextOccurrence = withNow(Date.now());
 eq('daily next', (() => { const d = nextOccurrence(Date.now() - 3600000, 'daily'); return d > Date.now() && d - Date.now() <= 86400000; })(), true);
 const fri = new Date(2026, 8, 18, 10); // sexta-feira

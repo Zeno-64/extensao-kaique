@@ -30,7 +30,7 @@
       if (Date.now() - lastLabels > 60000 || settings().barMode === 'labels') {
         const l = await ZF.wa.bridge('listLabels', {}, 15000);
         tb.labelsOk = !!(l && l.ok);
-        tb.labels = tb.labelsOk ? l.labels : [];
+        tb.labels = tb.labelsOk ? ZF.sortLabels(l.labels, settings().labelOrder) : [];
         lastLabels = Date.now();
       }
       renderChips();

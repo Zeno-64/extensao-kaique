@@ -256,7 +256,7 @@
       labelsRow.replaceChildren();
       if (!labels || !labels.ok) { labelsRow.appendChild(h('span', { class: 'zf-hint', style: { margin: 0 } }, labels ? 'Etiquetas do WhatsApp indisponíveis nesta conta.' : 'Carregando…')); return; }
       if (!labels.labels.length) { labelsRow.appendChild(h('span', { class: 'zf-hint', style: { margin: 0 } }, 'Nenhuma etiqueta/lista no seu WhatsApp.')); return; }
-      labels.labels.forEach((l) => {
+      ZF.sortLabels(labels.labels, (ui.settings || {}).labelOrder).forEach((l) => {
         const on = (cur.labels || []).includes(l.id);
         labelsRow.appendChild(tabChip({ name: l.name, color: l.color || '#8696a0' }, {
           active: on,
