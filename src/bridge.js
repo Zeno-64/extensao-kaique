@@ -12,6 +12,7 @@
  * v1.2 (set/2026): WAWebMsgDataUtils + addAndSendTextMsg (cartão de contato), prepRawMedia asSticker,
  * LabelCollection.addOrRemoveLabels, WAWebPresenceChatAction, Cmd.archiveChat/pinChat,
  * WAWebUpdateUnreadChatAction, WAWebProfilePicThumbCollection.
+ * v1.3 (set/2026): WAWebUserPrefsMeUser.getMaybeMePnUser / getMaybeMeLidUser (número da própria conta).
  * Se algo falhar, o content script cai para a automação pela interface.
  */
 (() => {
@@ -260,8 +261,19 @@
           vcard: defined('WAWebMsgDataUtils'),
           presence: defined('WAWebPresenceChatAction'),
           labelEdit: !!(Labels() && typeof Labels().addOrRemoveLabels === 'function'),
+          me: defined('WAWebUserPrefsMeUser'),
         },
       };
+    },
+
+    /** Número da própria conta (o backup automático vai para a conversa "Você") */
+    me() {
+      let pn = null, lid = null, name = '';
+      try { const f = pick('WAWebUserPrefsMeUser', 'getMaybeMePnUser'); pn = typeof f === 'function' ? f() : null; } catch (e) { /* ignora */ }
+      try { const f = pick('WAWebUserPrefsMeUser', 'getMaybeMeLidUser'); lid = typeof f === 'function' ? f() : null; } catch (e) { /* ignora */ }
+      try { const f = pick('WAWebUserPrefsMeUser', 'getMaybeMeDisplayName'); name = (typeof f === 'function' && f()) || ''; } catch (e) { /* ignora */ }
+      const phone = (pn && pn.user && String(pn.user)) || phoneOf(lid);
+      return phone ? { ok: true, phone, name } : { ok: false, reason: 'unavailable' };
     },
 
     getActiveChat() {

@@ -174,7 +174,7 @@
     return { ...b, caption: r(b.caption) };
   });
   /** Bloco que tem conteúdo para enviar */
-  ZF.blockHasContent = (b) => (b.type === 'text' ? !!(b.text && b.text.trim()) : b.type === 'vcard' ? !!ZF.onlyDigits(b.phone) : !!b.fileId);
+  ZF.blockHasContent = (b) => (b.type === 'text' ? !!(b.text && b.text.trim()) : b.type === 'vcard' ? !!ZF.onlyDigits(b.phone) : !!(b.fileId || b.inline));
 
   /** Tipo de uma mensagem (para filtros e ícones) */
   ZF.messageType = (blocks = []) => {

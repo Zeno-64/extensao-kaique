@@ -529,3 +529,21 @@ svg { flex-shrink: 0; }
 .zf-overlay.global { position: fixed; inset: 0; z-index: 90; align-items: center; pointer-events: auto; }
 .zf-overlay.global .zf-modal { max-width: 460px; }
 .zf-modal.wide { max-width: 720px; }
+
+/* ---------- v1.3: backup ---------- */
+.zf-backup-status { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.zf-backup-line { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: var(--muted); }
+.zf-backup-line svg { flex: none; margin-top: 2px; }
+.zf-backup-line.ok { color: var(--ok); }
+.zf-backup-line.warn { color: var(--warn); }
+.zf-backup-line.error { color: var(--danger); }
+.zf-drop.over { border-color: var(--accent); border-style: dashed; background: var(--accent-soft); }
+.zf-choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; margin-bottom: 8px; }
+.zf-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.zf-choice.danger:has(input:checked) { border-color: var(--danger); background: var(--danger-soft); }
+.zf-choice input { margin-top: 3px; accent-color: var(--accent); flex: none; }
+.zf-choice.danger input { accent-color: var(--danger); }
+.zf-choice b { display: block; font-size: 13.5px; margin-bottom: 2px; }
+.zf-choice span { font-size: 12.5px; color: var(--muted); }
+.zf-list-plain { margin: 0 0 12px; padding-left: 18px; font-size: 13px; }
+.zf-list-plain li { margin: 2px 0; }

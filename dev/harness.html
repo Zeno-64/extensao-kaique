@@ -162,6 +162,8 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
   mkChat('120363@g.us', 'Grupo Teste', { labels: ['2'] });
   mkChat('5511922222222@c.us', 'Pedro Alves', { labels: ['1'], unreadCount: 2, isFavorite: true, msgs: col([{ id: { fromMe: false }, type: 'chat', body: 'Qual o valor da consulta?', t: 5 }]) });
   mkChat('999888@lid', 'Contato LID', {});
+  mkChat('5511900000001@c.us', 'Você (mensagem para mim)', {});
+  localStorage.setItem('last-wid-md', '"5511900000001:7@c.us"');
   chats['999888@lid'].contact.phoneNumber = { user: '5511933333333' };
   const participants = [{ id: { _serialized: '5511911111111@c.us', user: '5511911111111', server: 'c.us' }, isAdmin: true }, { id: { _serialized: '777@lid', user: '777', server: 'lid' }, isAdmin: false }];
   const groupMeta = { '120363@g.us': { participants: col(participants) } };
@@ -224,6 +226,11 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
     } },
     WAWebGroupMetadataCollection: { default: { get: (id) => groupMeta[id._serialized || id] } },
     WAWebLidMigrationUtils: { toPn: (wid) => (lidToPn[wid.user] ? { user: lidToPn[wid.user] } : null) },
+    WAWebUserPrefsMeUser: {
+      getMaybeMePnUser: () => ({ _serialized: '5511900000001@c.us', user: '5511900000001', server: 'c.us' }),
+      getMaybeMeLidUser: () => null,
+      getMaybeMeDisplayName: () => 'Kaique',
+    },
   };
   if (!MOCK.noMods) {
     window.require = (name) => {
@@ -260,6 +267,7 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
 <script src="/ext/src/content/whatsapp.js"></script>
 <script>ZF.wa.openChatByLink = (phone) => { location.href = '/?' + (MOCK.noMods ? 'nomods=1&' : '') + 'nav=' + encodeURIComponent('https://web.whatsapp.com/send?phone=' + phone); };</script>
 <script src="/ext/src/content/runner.js"></script>
+<script src="/ext/src/content/backup.js"></script>
 <script src="/ext/src/content/ui.js"></script>
 <script src="/ext/src/content/action-editor.js"></script>
 <script src="/ext/src/content/tab-crm.js"></script>

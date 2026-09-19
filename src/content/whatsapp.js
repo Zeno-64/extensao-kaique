@@ -260,7 +260,7 @@
     const box = await waitFor(getCompose, 8000);
     if (!box) throw new Error('Campo de mensagem não encontrado');
     await clearBox(box);
-    const file = ZF.dataURLtoFile(fileRec.data, fileRec.name, fileRec.mime);
+    const file = fileRec.file || ZF.dataURLtoFile(fileRec.data, fileRec.name, fileRec.mime);
 
     // 1) cola o arquivo no campo de mensagem
     placeCaretAtEnd(box);
@@ -394,9 +394,8 @@
     if (b.type === 'vcard') {
       return (await bridge('sendVcard', { ...args, name: b.name || ZF.fmtPhone(b.phone), vcard: ZF.vcard(b) }, 60000)) || { ok: false };
     }
-    const rec = await ZF.store.getFile(b.fileId);
-    if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
-    const file = ZF.dataURLtoFile(rec.data, rec.name, rec.mime);
+    const rec = await fileRecOf(b);
+    const file = rec.file || ZF.dataURLtoFile(rec.data, rec.name, rec.mime);
     const mime = rec.mime || '';
     if (b.asSticker && mime.startsWith('image/')) {
       let sticker = null;
@@ -417,9 +416,14 @@
   async function sendBlockUI(b) {
     if (b.type === 'text') return sendText(b.text);
     if (b.type === 'vcard') return sendText(ZF.vcardText(b));
-    const rec = await ZF.store.getFile(b.fileId);
+    return sendFile(await fileRecOf(b), b.caption);
+  }
+
+  /** Arquivo do bloco: salvo no storage (fileId) ou gerado na hora (inline: {name, mime, file}), ex.: backup */
+  async function fileRecOf(b) {
+    const rec = b.inline || (await ZF.store.getFile(b.fileId));
     if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
-    return sendFile(rec, b.caption);
+    return rec;
   }
 
   /**

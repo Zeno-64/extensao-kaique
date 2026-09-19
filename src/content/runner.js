@@ -329,6 +329,7 @@
         if (!did) break;
         await chrome.storage.local.set({ runnerLock: { owner: instanceId, ts: Date.now() } });
       }
+      if (!runner.navigating && ZF.backup) await ZF.backup.autoTick();
       if (!runner.navigating && (runner.state.at < stamp || runner.state.phase === 'sending')) setState('idle', '');
     } catch (e) {
       console.error('[ZapFlow] runner', e);
@@ -349,6 +350,10 @@
   };
 
   runner.tick = tick;
+  runner.setState = setState;
+  runner.notify = notify;
+  runner.directAvailable = directAvailable;
+  runner.userTyping = () => Date.now() - runner.lastUserInput < 6000;
   runner.start = () => {
     setInterval(tick, 5000);
     store.onChange(['schedules', 'campaigns'], () => setTimeout(tick, 400));

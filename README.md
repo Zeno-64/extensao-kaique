@@ -30,7 +30,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 | ⚡ **Respostas rápidas** | Categorias, busca e filtros (Tudo, Por Tipo, Sem Categoria, Por Categoria, Mais Usadas). O ⊞ cria **Respostas Rápidas**, **Scripts** e **Categorias** |
 | 📝 **Notas** | Notas da conversa aberta e busca em todas as notas |
 | 📥 **Disparos em massa** | Para lista colada, **planilha Excel/CSV**, conversas, **grupos**, **participantes de grupos**, **etiquetas do WhatsApp** e **abas do CRM** |
-| ⚙ **Configurações** | Barra de abas e botões, envio, padrões dos disparos, backup e **Diagnóstico** |
+| ⚙ **Configurações** | **Backup** (automático para o seu WhatsApp e importação), barra de abas e botões, envio, padrões dos disparos e **Diagnóstico** |
 
 Tudo fica salvo **só no seu navegador** (`chrome.storage.local`). O único serviço externo é a API do Claude, e só se você ativar a IA.
 
@@ -92,6 +92,17 @@ Use **Configurações → Diagnóstico → Testar integração** para ver quais 
 
 ## Outros recursos
 
+### Backup automático
+Todo mês (ou toda semana), o ZapFlow manda um arquivo `zapflow-backup-AAAA-MM-DD.json` com tudo (respostas rápidas, scripts, abas, notas, agendamentos, lembretes, campanhas e arquivos) para a conversa **"Você"** do seu próprio WhatsApp. Configure em **Configurações → Backup**:
+- **Backup automático**: todo mês (padrão), toda semana ou desligado. O primeiro sai logo depois de instalar/atualizar. Se o computador estiver desligado na data, sai na próxima vez que o WhatsApp Web for aberto; se falhar, tenta de novo a cada hora (e avisa por notificação).
+- **Enviar para**: vazio = seu próprio número. Dá para colocar outro número (ex.: o celular da clínica).
+- **Enviar backup agora** e **Baixar** (salva o arquivo no computador).
+- A chave da IA **não** vai para o backup.
+
+**Importar backup** (em outro computador ou depois de reinstalar): no WhatsApp, abra a conversa "Você", baixe o arquivo do backup e clique em **Importar backup** (ou arraste o arquivo para o quadro Backup). A tela mostra o que tem no arquivo e pergunta como importar:
+- **Juntar com os dados atuais** (recomendado): mantém o que já existe e adiciona o que falta.
+- **Substituir tudo**: deixa tudo igual ao backup. Antes, baixa uma cópia dos dados atuais por segurança.
+
 ### Google Agenda
 Os botões de Google Agenda abrem o formulário de novo evento **já preenchido** (título, data, duração, descrição) numa nova aba — é só conferir e salvar. Não precisa fazer login na extensão.
 
@@ -127,6 +138,7 @@ src/content/action-editor.js editor "Ação do Resposta Rápida" (Adicionar Aç�
 src/content/topbar.js       barra de abas no topo, lista filtrada de conversas e quadro de atendimento (Kanban)
 src/content/whatsapp.js     envio (direto → interface → recarregar opcional) e automação do DOM (seletores no objeto SEL)
 src/content/runner.js       fila de agendamentos e disparos
+src/content/backup.js       backup automático (documento para o seu WhatsApp) e importação
 src/content/ui.js           painel, botões flutuantes, modais, menus (inclusive em sanfona), emojis, seletores
 src/content/tab-*.js        telas: crm (Contato), replies, notes, schedules, reminders, bulk, ai, settings
 src/content/util.js         utilitários, variáveis, CSV, planilhas .xlsx (leitura/escrita), ícones, imagens
@@ -140,7 +152,7 @@ dev/                        "WhatsApp falso" para testar o painel sem o WhatsApp
 
 ```bash
 npm install          # só para desenvolver (testes e reempacotar o SDK)
-npm test             # lógica (telefones, planilhas, variáveis, Pix, ações…) + service worker (IA, lembretes, alarmes)
+npm test             # lógica (telefones, planilhas, variáveis, Pix, ações, backup…) + service worker (IA, lembretes, alarmes)
 npm run harness      # abre um WhatsApp falso em http://localhost:5178 (?nomods=1 simula WhatsApp sem módulos internos)
 npm run build:vendor # reempacota o SDK da Anthropic em vendor/ após atualizar @anthropic-ai/sdk
 ```

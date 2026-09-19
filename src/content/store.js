@@ -28,6 +28,8 @@
     dock: true, // botões flutuantes na lateral do WhatsApp
     topBar: true, // barra de abas/etiquetas no topo
     barMode: 'tabs', // 'tabs' (abas do CRM) | 'labels' (etiquetas do WhatsApp)
+    backupFreq: 'monthly', // backup automático enviado ao próprio WhatsApp: 'monthly' | 'weekly' | 'off'
+    backupTo: '', // vazio = o próprio número da conta
   };
 
   const DEFAULTS = {
@@ -42,7 +44,7 @@
     runner: {},
   };
   // chaves que nunca vão para o backup (a chave da API da IA fica só neste navegador)
-  const PRIVATE_KEYS = ['runner', 'runnerLock', 'aiKey'];
+  const PRIVATE_KEYS = ['runner', 'runnerLock', 'aiKey', 'backupState'];
 
   // Fila por chave para evitar escritas concorrentes dentro desta aba
   const locks = {};
@@ -142,7 +144,7 @@
       const d = { ...json.data };
       PRIVATE_KEYS.forEach((k) => delete d[k]);
       if (mode === 'replace') {
-        const keep = await chrome.storage.local.get('aiKey');
+        const keep = await chrome.storage.local.get(['aiKey', 'backupState']);
         await chrome.storage.local.clear();
         await chrome.storage.local.set({ ...d, ...keep });
         await store.migrate();

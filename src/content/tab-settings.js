@@ -4,6 +4,65 @@
   const ZF = window.ZF;
   const { h, icon, store, ui } = ZF;
 
+  /** Backup: automático para o próprio WhatsApp, enviar agora, baixar e importar (também arrastando o arquivo) */
+  function backupSection(s, save) {
+    const B = ZF.backup;
+    const ICONS = { ok: 'check', error: 'alert', warn: 'alert', info: 'clock' };
+    const statusEl = h('div', { class: 'zf-backup-status' });
+    const paint = async () => {
+      const [settings, st] = [await store.settings(), await B.getState()];
+      statusEl.replaceChildren(...B.statusLines(settings.backupFreq, st).map((l) =>
+        h('div', { class: 'zf-backup-line ' + l.type }, icon(ICONS[l.type], 14), h('span', {}, l.text))));
+    };
+    paint();
+    const off = store.onChange(['backupState', 'settings'], () => (statusEl.isConnected ? paint() : off()));
+
+    const meHint = h('span', {}, 'Deixe vazio para mandar para você mesmo (a conversa "Você" do WhatsApp).');
+    B.myPhone().then((me) => {
+      if (me) meHint.textContent = `Deixe vazio para mandar para você mesmo: ${ZF.fmtPhone(me.phone)} (a conversa "Você" do WhatsApp).`;
+    }).catch(() => {});
+    const toInput = ui.input({
+      value: s.backupTo || '', placeholder: 'Seu número (automático)', style: { width: '210px' },
+      onchange: (e) => {
+        const raw = e.target.value.trim();
+        if (raw && !ZF.normalizePhone(raw, s.countryCode)) return ui.toast('Número inválido', 'error');
+        save({ backupTo: raw });
+      },
+    });
+
+    const download = ui.safe(async () => {
+      ZF.downloadText(B.fileName(Date.now()), JSON.stringify(await store.exportAll()), 'application/json');
+    });
+
+    const sec = h('div', { class: 'zf-section zf-drop' },
+      h('div', { class: 'zf-h3' }, 'Backup'),
+      h('div', { class: 'zf-hint', style: { marginBottom: '10px' } },
+        'Os dados do ZapFlow ficam só neste navegador. O backup automático manda um arquivo com tudo para o seu WhatsApp; com ele você restaura em qualquer computador.'),
+      ui.field('Backup automático', ui.select(B.FREQS, s.backupFreq || 'monthly', { onchange: (e) => save({ backupFreq: e.target.value }) })),
+      ui.field('Enviar para', toInput, meHint),
+      statusEl,
+      h('div', { class: 'zf-row', style: { flexWrap: 'wrap', gap: '6px', marginTop: '10px' } },
+        h('button', { class: 'zf-btn sm primary', onclick: ui.safe(() => B.sendNow()) }, icon('send', 14), 'Enviar backup agora'),
+        h('button', { class: 'zf-btn sm', onclick: download }, icon('download', 14), 'Baixar'),
+        h('button', { class: 'zf-btn sm', onclick: ui.safe(() => B.importFlow()) }, icon('upload', 14), 'Importar backup')),
+      h('div', { class: 'zf-hint', style: { marginTop: '8px' } },
+        'Para restaurar: no WhatsApp, abra a conversa "Você", baixe o arquivo zapflow-backup….json e clique em Importar backup (ou arraste o arquivo para este quadro).'));
+
+    // arrastar o arquivo do backup para o quadro
+    const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+    sec.addEventListener('dragover', (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.stopPropagation(); sec.classList.add('over'); });
+    sec.addEventListener('dragleave', (e) => { if (!sec.contains(e.relatedTarget)) sec.classList.remove('over'); });
+    sec.addEventListener('drop', ui.safe(async (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      sec.classList.remove('over');
+      const f = e.dataTransfer.files[0];
+      if (f) await B.importFlow(f);
+    }));
+    return sec;
+  }
+
   function render(body) {
     const s = ui.settings;
     const save = (patch) => store.saveSettings(patch).then(() => ui.toast('Configuração salva', 'ok', 1400));
@@ -36,6 +95,7 @@
         `${yes(m.vcard)} Cartão de contato`,
         `${yes(m.presence)} "Digitando…" e "gravando áudio…"`,
         `${yes(m.groups)} Participantes de grupos`,
+        `${yes(m.me)} Seu número (backup automático)`,
         `${yes(d.chatOpen)} Conversa aberta`,
         `${yes(d.compose)} Campo de mensagem encontrado (envio pela interface)`,
         `${yes(d.attach)} Botão de anexo encontrado`,
@@ -46,29 +106,10 @@
       ].join('\n');
     });
 
-    const exportBackup = ui.safe(async () => {
-      const json = await store.exportAll();
-      ZF.downloadText(`zapflow-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(json), 'application/json');
-    });
-    const importBackup = ui.safe(async () => {
-      const f = await ZF.pickFile('.json,application/json');
-      if (!f) return;
-      const json = JSON.parse(await ZF.readFileAsText(f));
-      const replace = await ui.confirm('Como importar?\n\n• Confirmar = SUBSTITUIR tudo pelos dados do backup\n• Cancelar = não importar\n\n(Para juntar com os dados atuais, use "Juntar backup").', { okLabel: 'Substituir tudo', danger: true, title: 'Importar backup' });
-      if (!replace) return;
-      await store.importAll(json, 'replace');
-      ui.toast('Backup importado', 'ok');
-      ui.rerender();
-    });
-    const mergeBackup = ui.safe(async () => {
-      const f = await ZF.pickFile('.json,application/json');
-      if (!f) return;
-      await store.importAll(JSON.parse(await ZF.readFileAsText(f)), 'merge');
-      ui.toast('Backup combinado com os dados atuais', 'ok');
-    });
-
-    ZF.append(body, 
+    ZF.append(body,
       h('div', { class: 'zf-h2' }, icon('settings', 18), 'Configurações'),
+
+      backupSection(s, save),
 
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Barra de abas e botões'),
@@ -102,14 +143,6 @@
         h('div', { class: 'zf-h3' }, 'Padrões do envio em massa'),
         h('div', { class: 'zf-grid2' }, ui.field('Intervalo mínimo (s)', num('bulkMinDelay', 3, 3600)), ui.field('Intervalo máximo (s)', num('bulkMaxDelay', 3, 3600))),
         h('div', { class: 'zf-grid2' }, ui.field('Pausa a cada (msgs)', num('bulkPauseEvery', 0, 1000)), ui.field('Pausa de (min)', num('bulkPauseMinutes', 0, 600)))),
-
-      h('div', { class: 'zf-section' },
-        h('div', { class: 'zf-h3' }, 'Backup'),
-        h('div', { class: 'zf-hint', style: { marginBottom: '8px' } }, 'Os dados ficam só neste navegador. Faça backup para levar para outro computador.'),
-        h('div', { class: 'zf-row', style: { flexWrap: 'wrap', gap: '6px' } },
-          h('button', { class: 'zf-btn sm', onclick: exportBackup }, icon('download', 14), 'Exportar backup'),
-          h('button', { class: 'zf-btn sm', onclick: mergeBackup }, icon('upload', 14), 'Juntar backup'),
-          h('button', { class: 'zf-btn sm danger', onclick: importBackup }, icon('upload', 14), 'Restaurar (substituir)'))),
 
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Diagnóstico'),
