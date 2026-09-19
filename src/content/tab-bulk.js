@@ -171,17 +171,17 @@
             }
             addPicked(all, 'participantes');
           } },
-          { label: 'Etiqueta ou lista do WhatsApp…', icon: 'tag', onClick: async () => { const r = await ui.pickWaLabel(); if (r) addPicked(r.chats, r.label.name); } },
+          { label: 'Etiqueta ou lista do WhatsApp…', icon: 'label', onClick: async () => { const r = await ui.pickWaLabel(); if (r) addPicked(r.chats, r.label.name); } },
           '-',
-          { title: 'Minhas etiquetas (ZapFlow)' },
+          { title: 'Abas do CRM (ZapFlow)' },
           ...myTagItems(),
         ]);
       },
     }, icon('plus', 14), 'Do WhatsApp');
     function myTagItems() {
       const list = ZF.crm ? ZF.crm.tags() : [];
-      if (!list.length) return [{ label: 'Nenhuma etiqueta criada (aba Contato)', icon: 'tag', onClick: () => ui.setTab('crm') }];
-      return list.map((t) => ({ label: t.name, icon: 'tag', onClick: () => addPicked(ZF.crm.chatsWithTag(t.id), t.name) }));
+      if (!list.length) return [{ label: 'Nenhuma aba criada (aba Contato)', icon: 'folderPlus', onClick: () => ui.setTab('crm') }];
+      return list.map((t) => ({ label: t.name, icon: 'folderArrow', count: ZF.crm.countInTab(t.id), onClick: () => addPicked(ZF.crm.chatsInTab(t.id), t.name) }));
     }
 
     const minD = ui.input({ type: 'number', min: 3, value: cfg.minDelay });
@@ -423,5 +423,5 @@
     renderList(body);
   }
 
-  ui.registerTab('bulk', { icon: 'megaphone', title: 'Disparos em massa', render });
+  ui.registerTab('bulk', { icon: 'inbox', title: 'Disparos em massa', render });
 })();

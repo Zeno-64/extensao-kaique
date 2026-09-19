@@ -25,6 +25,9 @@
     aiEffort: 'low',
     aiInstructions: '',
     aiLanguage: 'inglês',
+    dock: true, // botões flutuantes na lateral do WhatsApp
+    topBar: true, // barra de abas/etiquetas no topo
+    barMode: 'tabs', // 'tabs' (abas do CRM) | 'labels' (etiquetas do WhatsApp)
   };
 
   const DEFAULTS = {
@@ -116,8 +119,11 @@
     async gcFiles() {
       const all = await chrome.storage.local.get(null);
       const used = new Set();
-      const scan = (blocks) => (blocks || []).forEach((b) => b.fileId && used.add(b.fileId));
-      (all.replies || []).forEach((r) => scan(r.blocks));
+      const scan = (blocks) => (blocks || []).forEach((b) => {
+        if (b.fileId) used.add(b.fileId);
+        if (b.linkPreview && b.linkPreview.thumbFileId) used.add(b.linkPreview.thumbFileId);
+      });
+      (all.replies || []).forEach((r) => { scan(r.blocks); scan(r.actions); });
       (all.schedules || []).forEach((s) => scan(s.blocks));
       (all.campaigns || []).forEach((c) => scan(c.blocks));
       const drop = Object.keys(all).filter((k) => k.startsWith('file:') && !used.has(k.slice(5)));
@@ -139,6 +145,7 @@
         const keep = await chrome.storage.local.get('aiKey');
         await chrome.storage.local.clear();
         await chrome.storage.local.set({ ...d, ...keep });
+        await store.migrate();
         return;
       }
       const cur = await store.getMany(['categories', 'replies', 'schedules', 'campaigns', 'reminders', 'crmTags', 'crmChats']);
@@ -170,6 +177,15 @@
         crmTags: merge(cur.crmTags, d.crmTags),
         crmChats: mergeChats(cur.crmChats, d.crmChats),
       });
+      await store.migrate();
+    },
+
+    /** Converte dados de versões anteriores (respostas com "blocks" → "actions") */
+    async migrate() {
+      const { replies } = await chrome.storage.local.get('replies');
+      if (!Array.isArray(replies) || !replies.some((r) => !Array.isArray(r.actions))) return false;
+      await store.update('replies', (list) => list.map(ZF.migrateReply));
+      return true;
     },
 
     /** Escuta alterações: onChange(['replies','categories'], (changes) => ...) */

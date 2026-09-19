@@ -18,7 +18,7 @@
 </style></head>
 <body>
 <div id="app">
-  <div id="side"><h3>Conversas</h3><div id="pane-side"><div style="padding:12px">Maria Silva</div><div style="padding:12px">Grupo Teste</div></div></div>
+  <div id="side"><h3>Conversas</h3><div id="pane-side" style="height:calc(100% - 50px)"><div style="padding:12px">Maria Silva</div><div style="padding:12px">Grupo Teste</div><div style="padding:12px">Pedro Alves</div></div></div>
   <div id="main" style="position:relative">
     <header><span dir="auto" title="Maria Silva">Maria Silva</span></header>
     <div class="msgs"></div>
@@ -58,12 +58,13 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
     },
     runtime: {
       getURL: (p) => '/ext/' + p,
-      getManifest: () => ({ version: '1.1.0-harness' }),
+      getManifest: () => ({ version: '1.2.0-harness' }),
       sendMessage: async (msg) => {
         if (msg.type === 'ZF_SLEEP') { await new Promise((r) => setTimeout(r, msg.ms)); return true; }
         if (msg.type === 'ZF_AI_HAS_KEY') { const k = load().aiKey; return { ok: true, hasKey: !!k, hint: k ? k.slice(0, 10) + '…' : '' }; }
         if (msg.type === 'ZF_AI_KEY') { const all = load(); if (msg.key) all.aiKey = msg.key; else delete all.aiKey; save(all); return { ok: true }; }
         if (msg.type === 'ZF_KEEPALIVE') return true;
+        if (msg.type === 'ZF_OPEN_URL') { window.openedUrls = (window.openedUrls || []).concat(msg.url); return { ok: true }; }
         if (msg.type === 'ZF_AI') {
           aiLog.push(msg);
           await new Promise((r) => setTimeout(r, 300));
@@ -86,6 +87,15 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
       { id: 'r1', title: 'CC - Amanhã', categoryId: 'c1', order: 1, uses: 3, blocks: [{ type: 'text', text: '{saudacao}, {primeiro_nome}! Confirmando amanhã às *{horario}*.' }] },
       { id: 'r3', title: 'Check-in OK', categoryId: 'c2', order: 1, uses: 0, blocks: [{ type: 'text', text: 'Check-in recebido ✅ Obrigado, {primeiro_nome}!' }] },
     ],
+    crmTags: [
+      { id: 't1', name: 'P. Antigos', color: '#2455e6', order: 1 },
+      { id: 't2', name: 'Retomar Contato', color: '#7c3aed', order: 2 },
+      { id: 't3', name: 'Lead Orgânico', color: '#e0a800', order: 3 },
+    ],
+    crmChats: {
+      'p:5511911111111': { name: 'Maria Silva', phone: '5511911111111', chatId: '5511911111111@c.us', isGroup: false, tags: ['t1'], notes: [{ id: 'n1', text: 'Prefere horário da manhã', createdAt: 1 }] },
+      'p:5511922222222': { name: 'Pedro Alves', phone: '5511922222222', chatId: '5511922222222@c.us', isGroup: false, tags: ['t2', 't3'], notes: [] },
+    },
   });
 })();
 
@@ -133,6 +143,7 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
 
   /* ----- módulos internos (formato do WhatsApp Web set/2026) ----- */
   const col = (arr) => ({ getModelsArray: () => arr, get models() { return arr; } });
+  window.chatLog = [];
   const chats = {};
   let active = null;
   const setHeader = (t) => { const s = document.querySelector('#main header span'); s.textContent = t; s.title = t; };
@@ -149,7 +160,7 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
     { id: { fromMe: false }, type: 'image', body: 'BASE64...', caption: 'meu exame', t: 3 },
   ]) });
   mkChat('120363@g.us', 'Grupo Teste', { labels: ['2'] });
-  mkChat('5511922222222@c.us', 'Pedro Alves', { labels: ['1'], unreadCount: 2 });
+  mkChat('5511922222222@c.us', 'Pedro Alves', { labels: ['1'], unreadCount: 2, isFavorite: true, msgs: col([{ id: { fromMe: false }, type: 'chat', body: 'Qual o valor da consulta?', t: 5 }]) });
   mkChat('999888@lid', 'Contato LID', {});
   chats['999888@lid'].contact.phoneNumber = { user: '5511933333333' };
   const participants = [{ id: { _serialized: '5511911111111@c.us', user: '5511911111111', server: 'c.us' }, isAdmin: true }, { id: { _serialized: '777@lid', user: '777', server: 'lid' }, isAdmin: false }];
@@ -169,15 +180,33 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
       getLatestChatForWid: (wid) => chats[wid._serialized],
       getModelsArray: () => Object.values(chats),
     } },
-    WAWebCmd: { Cmd: { openChatBottom: async ({ chat }) => { if (!chat || !chat.id) throw new Error('bad'); openUI(chat); } } },
+    WAWebCmd: { Cmd: {
+      openChatBottom: async ({ chat }) => { if (!chat || !chat.id) throw new Error('bad'); openUI(chat); },
+      archiveChat: (chat, v) => { chat.archive = !!v; chatLog.push(['archive', chat.formattedTitle, v]); },
+      pinChat: (chat, v) => { chat.pin = v ? Date.now() : 0; chatLog.push(['pin', chat.formattedTitle, v]); },
+      markChatUnread: (chat, v) => { chat.unreadCount = v ? 1 : 0; chatLog.push(['unread', chat.formattedTitle, v]); },
+    } },
+    WAWebUpdateUnreadChatAction: {
+      markUnread: (chat, v) => { chat.unreadCount = v ? 1 : 0; chatLog.push(['markUnread', chat.formattedTitle, v]); },
+      sendSeen: ({ chat }) => { chat.unreadCount = 0; chatLog.push(['seen', chat.formattedTitle]); },
+    },
+    WAWebPresenceChatAction: {
+      markComposing: (chat) => chatLog.push(['composing', chat.formattedTitle]),
+      markRecording: (chat) => chatLog.push(['recording', chat.formattedTitle]),
+      markPaused: (chat) => chatLog.push(['paused', chat.formattedTitle]),
+    },
+    WAWebMsgDataUtils: { genOutgoingMsgData: async (chat, type) => ({ id: { id: Math.random().toString(36).slice(2) }, to: chat.id, type, t: Date.now() / 1000 }) },
     WAWebWidFactory: { createWid: (s) => { const [user, server] = s.split('@'); return { _serialized: s, user, server, toString: () => s }; } },
     WAWebFindChatAction: { findOrCreateLatestChat: async (wid) => ({ chat: mkChat(wid._serialized, '+' + wid.user) }) },
     WAWebQueryExistsJob: { queryWidExists: async (wid) => (wid.user.endsWith('0000') ? null : { wid }) },
-    WAWebSendTextMsgChatAction: { sendTextMsgToChat: async (chat, text) => { record(chat.formattedTitle, text, 'direct'); return [Promise.resolve({}), Promise.resolve({ messageSendResult: 'OK' })]; } },
+    WAWebSendTextMsgChatAction: {
+      sendTextMsgToChat: async (chat, text, opts = {}) => { record(chat.formattedTitle, text + (opts.linkPreview ? ` [banner: ${opts.linkPreview.title}${opts.linkPreview.thumbnail ? ' +img' : ''}]` : ''), 'direct'); return [Promise.resolve({}), Promise.resolve({ messageSendResult: 'OK' })]; },
+      addAndSendTextMsg: async (chat, data) => { record(chat.formattedTitle, `[${data.type}] ${data.vcardFormattedName} | ${data.body.split('\n').find((l) => l.startsWith('TEL'))}`, 'direct'); return { messageSendResult: 'OK' }; },
+    },
     WAWebMediaOpaqueData: { default: { createFromData: async (blob, type) => ({ blob, type }) } },
     WAWebPrepRawMedia: { prepRawMedia: (od, opts) => ({
       waitForPrep: async () => ({ mediaStage: 'RESOLVED' }),
-      sendToChat: async ({ chat, options }) => { record(chat.formattedTitle, `📎 ${od.blob.name}${options.caption ? ' — ' + options.caption : ''}${opts.isPtt ? ' [voz]' : opts.asDocument ? ' [doc]' : ''}`, 'direct'); return [Promise.resolve({}), Promise.resolve('OK')]; },
+      sendToChat: async ({ chat, options }) => { record(chat.formattedTitle, `📎 ${od.blob.name}${options.caption ? ' — ' + options.caption : ''}${opts.isPtt ? ' [voz]' : opts.asDocument ? ' [doc]' : opts.asSticker ? ' [figurinha ' + od.type + ']' : ''}`, 'direct'); return [Promise.resolve({}), Promise.resolve('OK')]; },
     }) },
     WAWebComposeBoxActions: { ComposeBoxActions: {
       paste: (chat, text) => { box.focus(); document.execCommand('insertText', false, text); },
@@ -186,7 +215,13 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
       focus: () => box.focus(),
     } },
     WAWebContactCollection: { ContactCollection: { getModelsArray: () => contacts, get: (id) => contacts.find((c) => c.id._serialized === (id._serialized || id)) } },
-    WAWebLabelCollection: { LabelCollection: { getModelsArray: () => [{ id: 1, name: 'Novo cliente', hexColor: '#ff9900' }, { id: 2, name: 'Grupos VIP', hexColor: '#00aa55' }] } },
+    WAWebLabelCollection: { LabelCollection: {
+      getModelsArray: () => [{ id: 1, name: 'Novo cliente', hexColor: '#ff9900' }, { id: 2, name: 'Grupos VIP', hexColor: '#00aa55' }],
+      addOrRemoveLabels: async (ops, list) => list.forEach((chat) => ops.forEach((o) => {
+        chat.labels = o.type === 'add' ? [...new Set([...chat.labels, String(o.id)])] : chat.labels.filter((x) => x !== String(o.id));
+        chatLog.push(['label', chat.formattedTitle, o.type, o.id]);
+      })),
+    } },
     WAWebGroupMetadataCollection: { default: { get: (id) => groupMeta[id._serialized || id] } },
     WAWebLidMigrationUtils: { toPn: (wid) => (lidToPn[wid.user] ? { user: lidToPn[wid.user] } : null) },
   };
@@ -221,16 +256,20 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
 <script src="/ext/src/bridge.js"></script>
 <script src="/ext/src/content/util.js"></script>
 <script src="/ext/src/content/store.js"></script>
+<script src="/ext/src/content/actions.js"></script>
 <script src="/ext/src/content/whatsapp.js"></script>
 <script>ZF.wa.openChatByLink = (phone) => { location.href = '/?' + (MOCK.noMods ? 'nomods=1&' : '') + 'nav=' + encodeURIComponent('https://web.whatsapp.com/send?phone=' + phone); };</script>
 <script src="/ext/src/content/runner.js"></script>
 <script src="/ext/src/content/ui.js"></script>
+<script src="/ext/src/content/action-editor.js"></script>
 <script src="/ext/src/content/tab-crm.js"></script>
 <script src="/ext/src/content/tab-replies.js"></script>
+<script src="/ext/src/content/tab-notes.js"></script>
 <script src="/ext/src/content/tab-schedules.js"></script>
 <script src="/ext/src/content/tab-reminders.js"></script>
 <script src="/ext/src/content/tab-bulk.js"></script>
 <script src="/ext/src/content/tab-ai.js"></script>
 <script src="/ext/src/content/tab-settings.js"></script>
+<script src="/ext/src/content/topbar.js"></script>
 <script src="/ext/src/content/main.js"></script>
 </body></html>

@@ -20,19 +20,19 @@ const SEED = {
   replies: [
     {
       id: 'rep-cc-amanha', title: 'CC - Amanhã', categoryId: 'cat-confirmacoes', order: 1, uses: 0,
-      blocks: [{ type: 'text', text: '{saudacao}, {primeiro_nome}! 😊\n\nPassando para confirmar sua consulta *amanhã ({amanha})* às *{horario}*.\n\nPosso confirmar sua presença?' }],
+      actions: [{ id: 'a1', type: 'text', text: '{saudacao}, {primeiro_nome}! 😊\n\nPassando para confirmar sua consulta *amanhã ({amanha})* às *{horario}*.\n\nPosso confirmar sua presença?' }],
     },
     {
       id: 'rep-cc-dia-d', title: 'CC - Dia D', categoryId: 'cat-confirmacoes', order: 2, uses: 0,
-      blocks: [{ type: 'text', text: '{saudacao}, {primeiro_nome}! Lembrando que sua consulta é *hoje* às *{horario}*. Até logo! 🙌' }],
+      actions: [{ id: 'a1', type: 'text', text: '{saudacao}, {primeiro_nome}! Lembrando que sua consulta é *hoje* às *{horario}*. Até logo! 🙌' }],
     },
     {
       id: 'rep-aceita-plano', title: 'Aceita plano?', categoryId: 'cat-dia-a-dia', order: 1, uses: 0,
-      blocks: [{ type: 'text', text: 'Atendemos sim! Me envie, por favor, uma foto da carteirinha do plano e de um documento com foto. 📄' }],
+      actions: [{ id: 'a1', type: 'text', text: 'Atendemos sim! Me envie, por favor, uma foto da carteirinha do plano e de um documento com foto. 📄' }],
     },
     {
       id: 'rep-checkin-ok', title: 'Check-in OK', categoryId: 'cat-dia-a-dia', order: 2, uses: 0,
-      blocks: [{ type: 'text', text: 'Check-in recebido ✅ Obrigado(a), {primeiro_nome}! Vou analisar e te retorno em breve.' }],
+      actions: [{ id: 'a1', type: 'text', text: 'Check-in recebido ✅ Obrigado(a), {primeiro_nome}! Vou analisar e te retorno em breve.' }],
     },
   ],
 };
@@ -274,6 +274,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'ZF_AI_HAS_KEY') {
     chrome.storage.local.get('aiKey').then(({ aiKey }) => sendResponse({ ok: true, hasKey: !!aiKey, hint: aiKey ? aiKey.slice(0, 10) + '…' + aiKey.slice(-4) : '' }));
     return true;
+  }
+  if (msg.type === 'ZF_OPEN_URL') {
+    // abre páginas auxiliares (ex.: evento do Google Agenda) sem bloqueio de pop-up
+    let ok = false;
+    try { ok = /^https:\/\/(calendar\.google\.com|www\.google\.com)\//.test(new URL(msg.url).href); } catch (e) { ok = false; }
+    if (ok) chrome.tabs.create({ url: msg.url, index: sender.tab ? sender.tab.index + 1 : undefined });
+    sendResponse({ ok });
+    return;
   }
   if (msg.type === 'ZF_NOTIFY') {
     chrome.notifications.create('', {

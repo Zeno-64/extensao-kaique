@@ -276,5 +276,5 @@
     renderSettings(body, s);
   }
 
-  ui.registerTab('ai', { icon: 'sparkles', title: 'Assistente de IA', render });
+  ui.registerTab('ai', { icon: 'sparkles', title: 'Assistente de IA', render, noHeader: true });
 })();

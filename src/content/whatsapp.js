@@ -291,16 +291,10 @@
 
   /** Envia uma sequência de blocos (já renderizados) na conversa aberta */
   async function sendBlocks(blocks) {
-    const list = blocks.filter((b) => (b.type === 'text' ? b.text && b.text.trim() : b.fileId));
+    const list = blocks.filter(ZF.blockHasContent);
     if (!list.length) throw new Error('Mensagem vazia');
     for (let i = 0; i < list.length; i++) {
-      const b = list[i];
-      if (b.type === 'text') await sendText(b.text);
-      else {
-        const rec = await ZF.store.getFile(b.fileId);
-        if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
-        await sendFile(rec, b.caption);
-      }
+      await sendBlockUI(list[i]);
       if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
     }
   }
@@ -309,7 +303,7 @@
   async function insertBlocks(blocks) {
     const box = getCompose();
     if (!box) throw new Error('Abra uma conversa primeiro');
-    const texts = blocks.filter((b) => b.type === 'text' && b.text.trim()).map((b) => b.text);
+    const texts = blocks.filter((b) => (b.type === 'text' && b.text.trim()) || b.type === 'vcard').map((b) => (b.type === 'vcard' ? ZF.vcardText(b) : b.text));
     const files = blocks.filter((b) => b.type === 'file');
     if (texts.length) {
       const text = texts.join('\n\n');
@@ -388,12 +382,30 @@
 
   async function sendDirect(target, b) {
     const args = { phone: target.phone || undefined, chatId: target.chatId || undefined };
-    if (b.type === 'text') return (await bridge('sendText', { ...args, text: b.text }, 60000)) || { ok: false };
+    if (b.type === 'text') {
+      let linkPreview;
+      if (b.linkPreview && b.linkPreview.url) {
+        linkPreview = { url: b.linkPreview.url, title: b.linkPreview.title, description: b.linkPreview.description };
+        const img = b.linkPreview.thumbFileId ? await ZF.store.getFile(b.linkPreview.thumbFileId) : null;
+        if (img) { try { linkPreview.thumbnail = await ZF.thumbBase64(img.data); } catch (e) { /* segue sem imagem */ } }
+      }
+      return (await bridge('sendText', { ...args, text: b.text, linkPreview }, 60000)) || { ok: false };
+    }
+    if (b.type === 'vcard') {
+      return (await bridge('sendVcard', { ...args, name: b.name || ZF.fmtPhone(b.phone), vcard: ZF.vcard(b) }, 60000)) || { ok: false };
+    }
     const rec = await ZF.store.getFile(b.fileId);
     if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
     const file = ZF.dataURLtoFile(rec.data, rec.name, rec.mime);
     const mime = rec.mime || '';
-    const mode = mime.startsWith('audio/') ? (b.asVoice ? 'ptt' : 'audio') : /^(image|video)\//.test(mime) ? 'auto' : 'document';
+    if (b.asSticker && mime.startsWith('image/')) {
+      let sticker = null;
+      try { sticker = await ZF.toStickerFile(rec); } catch (e) { /* manda como imagem */ }
+      const r = sticker ? await bridge('sendMedia', { ...args, file: sticker, mode: 'sticker' }, 180000) : null;
+      if (r && (r.ok || !RETRYABLE.includes(r.reason))) return r;
+      return (await bridge('sendMedia', { ...args, file, mode: 'auto' }, 180000)) || { ok: false };
+    }
+    const mode = mime.startsWith('audio/') ? (b.asVoice ? 'ptt' : 'audio') : b.asDocument ? 'document' : /^(image|video)\//.test(mime) ? 'auto' : 'document';
     let r = await bridge('sendMedia', { ...args, file, caption: b.caption, mode }, 180000);
     if (r && !r.ok && mode === 'ptt' && RETRYABLE.includes(r.reason)) {
       r = await bridge('sendMedia', { ...args, file, caption: b.caption, mode: 'audio' }, 180000);
@@ -401,8 +413,10 @@
     return r || { ok: false };
   }
 
+  /** Envio pela interface (conversa aberta). Contato vira texto e figurinha vira imagem. */
   async function sendBlockUI(b) {
     if (b.type === 'text') return sendText(b.text);
+    if (b.type === 'vcard') return sendText(ZF.vcardText(b));
     const rec = await ZF.store.getFile(b.fileId);
     if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
     return sendFile(rec, b.caption);
@@ -415,7 +429,7 @@
    * Retorna {ok, usedUi, prevChat} | {ok:false, invalid} | {ok:false, needReload, remaining}.
    */
   async function deliver(target, blocks, settings = {}, { isOpen = false } = {}) {
-    const list = blocks.filter((b) => (b.type === 'text' ? b.text && b.text.trim() : b.fileId));
+    const list = blocks.filter(ZF.blockHasContent);
     if (!list.length) throw new Error('Mensagem vazia');
     // isOpen: o destino já é a conversa aberta — o caminho pela interface não precisa abrir nada
     let ui = isOpen ? { prevChat: null } : null;

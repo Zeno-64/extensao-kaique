@@ -32,6 +32,9 @@
         `${yes(m.widFactory && m.findChat && m.queryExists)} Números novos e verificação de WhatsApp`,
         `${yes(m.contacts)} Contatos (exportar)`,
         `${yes(m.labels)} Etiquetas e listas do WhatsApp`,
+        `${yes(m.labelEdit)} Colocar/tirar etiquetas pelas respostas rápidas`,
+        `${yes(m.vcard)} Cartão de contato`,
+        `${yes(m.presence)} "Digitando…" e "gravando áudio…"`,
         `${yes(m.groups)} Participantes de grupos`,
         `${yes(d.chatOpen)} Conversa aberta`,
         `${yes(d.compose)} Campo de mensagem encontrado (envio pela interface)`,
@@ -66,6 +69,15 @@
 
     ZF.append(body, 
       h('div', { class: 'zf-h2' }, icon('settings', 18), 'Configurações'),
+
+      h('div', { class: 'zf-section' },
+        h('div', { class: 'zf-h3' }, 'Barra de abas e botões'),
+        ui.checkbox('Mostrar a barra de abas no topo do WhatsApp', s.topBar !== false, (v) => save({ topBar: v })),
+        ui.field('A barra mostra', ui.select([
+          { value: 'tabs', label: 'Abas do CRM (ZapFlow)' },
+          { value: 'labels', label: 'Etiquetas do WhatsApp' },
+        ], s.barMode || 'tabs', { onchange: (e) => save({ barMode: e.target.value }) })),
+        ui.checkbox('Mostrar os botões flutuantes na lateral (IA, quadro, contato, agendamentos, agenda, notas, lembretes)', s.dock !== false, (v) => save({ dock: v }))),
 
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Painel'),

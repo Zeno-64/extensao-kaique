@@ -233,5 +233,5 @@
       h('span', {}, 'Os envios acontecem com o Chrome aberto. Se o WhatsApp Web estiver fechado, a extensão abre uma aba automaticamente na hora marcada.')));
   }
 
-  ui.registerTab('schedules', { icon: 'clock', title: 'Mensagens agendadas', render });
+  ui.registerTab('schedules', { icon: 'calendarClock', title: 'Mensagens agendadas', render });
 })();

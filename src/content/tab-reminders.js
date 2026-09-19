@@ -158,8 +158,7 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || msg.type !== 'ZF_OPEN_REMINDER') return;
     const r = reminders.find((x) => x.id === msg.id);
-    if (!ui.open) ui.toggle(true);
-    ui.setTab('reminders');
+    ui.openView('reminders');
     if (r && r.chat) openChat(r).catch(() => {});
   });
 
@@ -198,7 +197,7 @@
     ZF.append(body,
       h('div', { class: 'zf-row', style: { gap: '6px', marginBottom: '6px' } },
         h('button', { class: 'zf-btn primary', style: { flex: 1 }, onclick: ui.safe(() => openReminderEditor()) }, icon('plus', 16), 'Novo lembrete'),
-        h('button', { class: 'zf-btn', title: 'Criar evento no Google Agenda', onclick: () => ui.openEventEditor({}) }, icon('calendar', 16), 'Agenda')),
+        h('button', { class: 'zf-btn', title: 'Criar evento no Google Agenda', onclick: () => ui.openEventEditor({}) }, icon('calendarDays', 16), 'Agenda')),
       late.length ? [h('div', { class: 'zf-h3', style: { color: 'var(--warn)' } }, `Agora (${late.length})`), late.map(card)] : null,
       h('div', { class: 'zf-h3' }, `Próximos (${next.length})`),
       next.length ? next.map(card) : h('div', { class: 'zf-empty' }, 'Nenhum lembrete agendado.'),
@@ -214,5 +213,5 @@
         h('span', {}, 'Na hora marcada aparece um alerta aqui no WhatsApp e uma notificação do Windows (com o Chrome aberto).')));
   }
 
-  ui.registerTab('reminders', { icon: 'bell', title: 'Lembretes', render });
+  ui.registerTab('reminders', { icon: 'alarm', title: 'Lembretes', render });
 })();

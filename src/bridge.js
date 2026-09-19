@@ -9,6 +9,9 @@
  * WAWebWidFactory, WAWebFindChatAction, WAWebQueryExistsJob, WAWebSendTextMsgChatAction,
  * WAWebMediaOpaqueData, WAWebPrepRawMedia, WAWebComposeBoxActions, WAWebContactCollection,
  * WAWebLabelCollection, WAWebGroupMetadataCollection, WAWebLidMigrationUtils.
+ * v1.2 (set/2026): WAWebMsgDataUtils + addAndSendTextMsg (cartão de contato), prepRawMedia asSticker,
+ * LabelCollection.addOrRemoveLabels, WAWebPresenceChatAction, Cmd.archiveChat/pinChat,
+ * WAWebUpdateUnreadChatAction, WAWebProfilePicThumbCollection.
  * Se algo falhar, o content script cai para a automação pela interface.
  */
 (() => {
@@ -103,9 +106,40 @@
       pushname,
       unread: Number(field('WAWebChatGetters', 'getUnreadCount', chat, 'unreadCount')) || 0,
       archived: !!field('WAWebChatGetters', 'getArchive', chat, 'archive'),
+      pinned: Number(field('WAWebChatGetters', 'getPin', chat, 'pin')) > 0,
+      favorite: !!field('WAWebFrontendChatGetters', 'getIsFavorite', chat, 'isFavorite'),
       labels: Array.isArray(labels) ? labels.map(String) : [],
       t: Number(field('WAWebChatGetters', 'getT', chat, 't')) || 0,
     };
+  }
+
+  /** Texto curto da última mensagem (para listas) */
+  function previewOf(chat) {
+    let msg = null;
+    try {
+      const f = pick('WAWebFrontendChatGetters', 'getPreviewMessage');
+      msg = typeof f === 'function' ? f(chat) : null;
+    } catch (e) { /* ignora */ }
+    if (!msg) {
+      const msgs = field('WAWebFrontendChatGetters', 'getMsgs', chat, 'msgs');
+      const arr = models(msgs);
+      msg = arr[arr.length - 1] || null;
+    }
+    if (!msg) return null;
+    const type = msg.type || '';
+    const LABELS = { image: '📷 Foto', video: '🎥 Vídeo', ptt: '🎤 Áudio', audio: '🎵 Áudio', document: '📄 Documento', sticker: 'Figurinha', vcard: '👤 Contato', location: '📍 Localização' };
+    let text = type === 'chat' ? msg.body : msg.caption || LABELS[type] || '';
+    if (typeof text !== 'string') text = '';
+    return { text: text.slice(0, 160), fromMe: !!(msg.id && msg.id.fromMe), t: msg.t || 0 };
+  }
+
+  function picOf(chat) {
+    try {
+      const PP = pick('WAWebProfilePicThumbCollection', 'ProfilePicThumbCollection');
+      const p = PP && typeof PP.get === 'function' ? PP.get(chat.id) : null;
+      const url = p && (p.img || p.eurl);
+      return typeof url === 'string' && /^https:/.test(url) ? url : null;
+    } catch (e) { return null; }
   }
 
   function getActive() {
@@ -223,6 +257,9 @@
           contacts: !!Contacts(),
           labels: !!Labels(),
           groups: defined('WAWebGroupMetadataCollection'),
+          vcard: defined('WAWebMsgDataUtils'),
+          presence: defined('WAWebPresenceChatAction'),
+          labelEdit: !!(Labels() && typeof Labels().addOrRemoveLabels === 'function'),
         },
       };
     },
@@ -245,21 +282,58 @@
       return opened ? { ok: true, ...chatInfo(r.chat) } : { ok: false, reason: 'open_failed' };
     },
 
-    async sendText({ phone, chatId, text }) {
+    /** linkPreview (opcional): { url, title, description, thumbnail (JPEG em base64) } — "link com banner" */
+    async sendText({ phone, chatId, text, linkPreview }) {
       const S = mod('WAWebSendTextMsgChatAction');
       if (!S || typeof S.sendTextMsgToChat !== 'function') return { ok: false, reason: 'unavailable' };
       const r = await resolveChat({ phone, chatId });
       if (!r.chat) return { ok: false, reason: r.error };
+      const opts = {};
+      if (linkPreview && linkPreview.url) {
+        opts.linkPreview = {
+          canonicalUrl: linkPreview.url,
+          matchedText: linkPreview.url,
+          title: linkPreview.title || '',
+          description: linkPreview.description || '',
+          richPreviewType: 0,
+          doNotPlayInline: true,
+        };
+        if (linkPreview.thumbnail) opts.linkPreview.thumbnail = linkPreview.thumbnail;
+      }
       // erro daqui em diante = 'send_error' (a mensagem pode ter saído; não repetir pela interface)
       try {
-        await settleSend(await S.sendTextMsgToChat(r.chat, text));
+        await settleSend(await S.sendTextMsgToChat(r.chat, text, opts));
       } catch (e) {
         return { ok: false, reason: 'send_error', error: String((e && e.message) || e) };
       }
       return { ok: true, ...chatInfo(r.chat) };
     },
 
-    /** mode: 'auto' | 'ptt' (áudio de voz) | 'audio' | 'document' */
+    /** Cartão de contato (vCard) — o mesmo tipo de mensagem de "Anexar → Contato" */
+    async sendVcard({ phone, chatId, name, vcard }) {
+      const MDU = mod('WAWebMsgDataUtils');
+      const S = mod('WAWebSendTextMsgChatAction');
+      if (!MDU || typeof MDU.genOutgoingMsgData !== 'function' || !S || typeof S.addAndSendTextMsg !== 'function') return { ok: false, reason: 'unavailable' };
+      const r = await resolveChat({ phone, chatId });
+      if (!r.chat) return { ok: false, reason: r.error };
+      let data;
+      try {
+        const base = await MDU.genOutgoingMsgData(r.chat, 'vcard');
+        let eph = {};
+        try { const f = pick('WAWebGetEphemeralFieldsMsgActionsUtils', 'getEphemeralFields'); if (typeof f === 'function') eph = f(r.chat) || {}; } catch (e) { /* ignora */ }
+        data = { ...base, ...eph, type: 'vcard', body: vcard, vcardFormattedName: name };
+      } catch (e) {
+        return { ok: false, reason: 'unavailable', error: String((e && e.message) || e) };
+      }
+      try {
+        await settleSend(await S.addAndSendTextMsg(r.chat, data));
+      } catch (e) {
+        return { ok: false, reason: 'send_error', error: String((e && e.message) || e) };
+      }
+      return { ok: true, ...chatInfo(r.chat) };
+    },
+
+    /** mode: 'auto' | 'ptt' (áudio de voz) | 'audio' | 'document' | 'sticker' */
     async sendMedia({ phone, chatId, file, caption, mode }) {
       const OD = pick('WAWebMediaOpaqueData', 'createFromData') ? mod('WAWebMediaOpaqueData') : null;
       const OpaqueData = OD && (OD.default || OD);
@@ -276,6 +350,7 @@
         if (mode === 'ptt') opts.isPtt = true;
         else if (mode === 'audio') opts.isAudio = true;
         else if (mode === 'document') opts.asDocument = true;
+        else if (mode === 'sticker') opts.asSticker = true;
         prep = prepRawMedia(opaque, opts);
         const data = await prep.waitForPrep();
         const stage = data && data.mediaStage;
@@ -335,6 +410,82 @@
         count: counts[String(l.id)] || l.chatCount || l.count || 0,
       })).filter((l) => l.name);
       return { ok: true, labels };
+    },
+
+    /** Prévia da última mensagem e foto de algumas conversas (lista filtrada por aba/etiqueta) */
+    chatDetails({ chatIds = [] }) {
+      const C = Chats();
+      if (!C) return { ok: false, reason: 'unavailable' };
+      const out = {};
+      chatIds.slice(0, 300).forEach((id) => {
+        let chat = null;
+        try { chat = C.get(id); } catch (e) { /* ignora */ }
+        if (!chat) return;
+        out[id] = { preview: previewOf(chat), pic: picOf(chat) };
+      });
+      return { ok: true, details: out };
+    },
+
+    /** archive | unarchive | pin | unpin | markUnread | markRead */
+    async chatAction({ phone, chatId, action }) {
+      const Cmd = pick('WAWebCmd', 'Cmd');
+      const r = await resolveChat({ phone, chatId });
+      if (!r.chat) return { ok: false, reason: r.error };
+      const chat = r.chat;
+      const run = {
+        archive: () => Cmd.archiveChat(chat, true, false),
+        unarchive: () => Cmd.archiveChat(chat, false, false),
+        pin: () => Cmd.pinChat(chat, true),
+        unpin: () => Cmd.pinChat(chat, false),
+        markUnread: () => {
+          const f = pick('WAWebUpdateUnreadChatAction', 'markUnread');
+          return typeof f === 'function' ? f(chat, true) : Cmd.markChatUnread(chat, true);
+        },
+        markRead: () => {
+          const f = pick('WAWebUpdateUnreadChatAction', 'sendSeen');
+          return typeof f === 'function' ? f({ chat, threadId: undefined }) : Cmd.markChatUnread(chat, false);
+        },
+      }[action];
+      if (!run) return { ok: false, reason: 'bad_action' };
+      if (!Cmd && !['markUnread', 'markRead'].includes(action)) return { ok: false, reason: 'unavailable' };
+      await run();
+      return { ok: true };
+    },
+
+    /** Mostra "digitando…" / "gravando áudio…" para o contato. state: composing | recording | paused */
+    async presence({ phone, chatId, state }) {
+      const P = mod('WAWebPresenceChatAction');
+      const fn = P && { composing: P.markComposing, recording: P.markRecording, paused: P.markPaused }[state];
+      if (typeof fn !== 'function') return { ok: false, reason: 'unavailable' };
+      const r = await resolveChat({ phone, chatId });
+      if (!r.chat) return { ok: false, reason: r.error };
+      await fn(r.chat);
+      return { ok: true };
+    },
+
+    /** Etiquetas/listas do WhatsApp da conversa: add/remove = ids; clear = remove todas */
+    async editLabels({ phone, chatId, add = [], remove = [], clear = false }) {
+      const L = Labels();
+      if (!L || typeof L.addOrRemoveLabels !== 'function') return { ok: false, reason: 'unavailable' };
+      const r = await resolveChat({ phone, chatId });
+      if (!r.chat) return { ok: false, reason: r.error };
+      const current = (field('WAWebChatGetters', 'getLabels', r.chat, 'labels') || []).map(String);
+      const ops = [];
+      const rm = clear ? current : remove.map(String).filter((id) => current.includes(id));
+      rm.forEach((id) => ops.push({ id, type: 'remove' }));
+      add.map(String).filter((id) => !current.includes(id) && !rm.includes(id)).forEach((id) => ops.push({ id, type: 'add' }));
+      if (!ops.length) return { ok: true, changed: 0 };
+      await L.addOrRemoveLabels(ops, [r.chat]);
+      return { ok: true, changed: ops.length };
+    },
+
+    /** Código do link de convite do grupo, se o WhatsApp já o tiver carregado */
+    async groupInvite({ chatId }) {
+      const r = await resolveChat({ chatId });
+      if (!r.chat) return { ok: false, reason: r.error };
+      const meta = field('WAWebFrontendChatGetters', 'getGroupMetadata', r.chat, 'groupMetadata');
+      const code = meta && typeof meta.inviteCode === 'string' ? meta.inviteCode : null;
+      return { ok: true, code, link: code ? `https://chat.whatsapp.com/${code}` : null };
     },
 
     listContacts() {

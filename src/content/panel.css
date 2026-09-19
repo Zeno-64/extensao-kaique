@@ -298,7 +298,7 @@ svg { flex-shrink: 0; }
 .zf-modal-f .zf-left { margin-right: auto; }
 
 .zf-menu {
-  position: absolute; z-index: 20; min-width: 190px; max-width: 300px; max-height: 60vh; overflow-y: auto;
+  position: fixed; z-index: 100; min-width: 190px; max-width: 320px; max-height: 70vh; overflow-y: auto; pointer-events: auto;
   background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 4px;
 }
 .zf-menu button {
@@ -311,13 +311,14 @@ svg { flex-shrink: 0; }
 .zf-menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
 .zf-menu .zf-menu-title { font-size: 11.5px; color: var(--muted); padding: 6px 10px 2px; font-weight: 700; text-transform: uppercase; }
 
-.zf-alerts { position: fixed; top: 72px; right: 56px; width: 320px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 8px; z-index: 40; pointer-events: auto; }
-.zf:has(> .zf-panel) .zf-alerts { right: calc(var(--w) + 16px); }
+.zf-alerts { position: fixed; top: 72px; right: 76px; width: 320px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 8px; z-index: 40; pointer-events: auto; }
+.zf:has(> .zf-panel) .zf-alerts { right: calc(var(--w) + 76px); }
 .zf-alerts:empty { display: none; }
 .zf-alert { background: var(--bg); border: 1px solid var(--warn); border-left: 5px solid var(--warn); border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); animation: zf-in .2s ease; }
 .zf-alert .zf-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 
-.zf-toasts { position: absolute; left: 12px; right: 12px; bottom: 14px; display: flex; flex-direction: column; gap: 6px; z-index: 30; pointer-events: none; }
+.zf-toasts { position: fixed; right: 84px; bottom: 20px; width: 340px; max-width: calc(100vw - 100px); display: flex; flex-direction: column; gap: 6px; z-index: 95; pointer-events: none; }
+.zf.zf-open .zf-toasts { right: calc(var(--w) + 84px); }
 .zf-toast {
   background: #1f2937; color: #fff; padding: 9px 12px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow);
   display: flex; align-items: center; gap: 8px; animation: zf-in .18s ease;
@@ -325,3 +326,206 @@ svg { flex-shrink: 0; }
 .zf-toast.error { background: #b42318; }
 .zf-toast.ok { background: #067647; }
 @keyframes zf-in { from { transform: translateY(8px); opacity: 0; } }
+
+/* =====================================================================
+   v1.2 — barra lateral, barra de abas, lista filtrada, Kanban, editor de ações
+   ===================================================================== */
+.zf-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-center { display: flex; justify-content: center; margin-top: 12px; }
+.zf-btn.lg { height: 40px; padding: 0 20px; font-size: 15.5px; border-radius: 8px; }
+.zf-btn.primary.lg { box-shadow: 0 3px 10px rgba(36, 85, 230, .35); }
+.zf-viewhead { margin-top: 2px; }
+.zf-linkbtn { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 4px; font-size: 12.5px; max-width: 100%; }
+.zf-note-card { padding: 8px 10px; }
+.zf-note-text { white-space: pre-wrap; word-break: break-word; font-size: 13.5px; }
+.zf-steps { padding-left: 20px; margin: 0; }
+.zf-steps li { margin: 8px 0; }
+.zf-item.script .zf-type { color: var(--purple); }
+.zf-menu-count { margin-left: auto; font-size: 11.5px; color: var(--muted); font-weight: 600; padding-left: 10px; }
+
+/* ---------- botões flutuantes (dock) ---------- */
+.zf-dock {
+  position: fixed; right: 14px; bottom: 86px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 30; pointer-events: auto; transition: right .15s ease;
+}
+.zf.zf-open .zf-dock { right: calc(var(--w) + 14px); }
+.zf-dock-items { display: flex; flex-direction: column; gap: 8px; }
+.zf-dock.collapsed .zf-dock-items { display: none; }
+.zf-dock.zf-hidden { display: none; }
+.zf-dock.collapsed .zf-dock-mini svg { transform: rotate(180deg); }
+.zf-dock-btn, .zf-dock-logo, .zf-dock-mini { position: relative; border: 0; cursor: pointer; display: grid; place-items: center; }
+.zf-dock-btn {
+  width: 40px; height: 40px; border-radius: 11px; background: #fff; color: var(--accent);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .16), 0 0 0 1px rgba(15, 23, 42, .05);
+  transition: transform .1s, background .12s;
+}
+.zf-dock-btn:hover { background: var(--accent-soft); transform: translateX(-2px); }
+.zf-dock-btn.active { background: var(--accent); color: #fff; }
+.zf.dark .zf-dock-btn { background: #202c33; color: #8fb0ff; }
+.zf.dark .zf-dock-btn.active { background: var(--accent); color: #fff; }
+.zf-dock-logo {
+  width: 52px; height: 52px; border-radius: 50%; color: #fff;
+  background: radial-gradient(circle at 30% 25%, #4f7bff, #2455e6 45%, #172a6e);
+  box-shadow: 0 4px 14px rgba(23, 42, 110, .45); margin-top: 4px;
+}
+.zf-dock-logo:hover { filter: brightness(1.08); }
+.zf-dock-mini { width: 26px; height: 16px; border-radius: 8px; background: rgba(127, 127, 127, .22); color: var(--text); opacity: .6; }
+.zf-dock-mini:hover { opacity: 1; }
+.zf-dock .zf-dot {
+  position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
+  background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 2px solid #fff;
+}
+.zf-tip {
+  position: absolute; right: calc(100% + 12px); top: 50%; transform: translateY(-50%); pointer-events: none;
+  background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap;
+  padding: 6px 12px; border-radius: 999px; box-shadow: 0 3px 10px rgba(36, 85, 230, .35); opacity: 0; transition: opacity .12s;
+}
+.zf-tip::after { content: ""; position: absolute; right: -5px; top: 50%; transform: translateY(-50%) rotate(45deg); width: 10px; height: 10px; background: var(--accent); border-radius: 2px; }
+.zf-dock-btn:hover .zf-tip, .zf-dock-logo:hover .zf-tip { opacity: 1; }
+
+/* ---------- barra de abas (topo) ---------- */
+.zf-topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 20; pointer-events: auto;
+  display: flex; align-items: center; gap: 6px; padding: 0 8px 0 10px;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+}
+.zf.zf-open .zf-topbar { right: var(--w); }
+.zf-tb-btn { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; flex-shrink: 0; position: relative; }
+.zf-tb-btn:hover { background: var(--surface-2); color: var(--text); }
+.zf-tb-dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: none; }
+.zf-tb-filter.has-sel .zf-tb-dot { display: block; }
+.zf-tb-chips { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; overflow-y: hidden; padding: 4px 2px; scrollbar-width: thin; }
+.zf-tb-chips::-webkit-scrollbar { height: 5px; }
+.zf-tb-chips::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.zf-tbchip {
+  --c: #2455e6; flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 5px 0 11px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text);
+  font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.zf-tbchip:hover { border-color: var(--c); }
+.zf-tbchip.active { border-color: var(--c); background: color-mix(in srgb, var(--c) 13%, var(--bg)); box-shadow: inset 0 -2px 0 var(--c); }
+.zf-tbchip-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+.zf-tbchip-n, .zf-tabchip-n {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--c, var(--accent)); color: #fff;
+  font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0;
+}
+.zf-tb-empty { font-size: 12.5px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; }
+.zf-tb-empty.link { color: var(--accent); font-weight: 600; cursor: pointer; }
+.zf-tb-handle {
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 20; pointer-events: auto;
+  display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 10px; border: 0; border-radius: 0 0 8px 8px;
+  background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer; opacity: .8;
+}
+.zf-tb-handle:hover { opacity: 1; }
+
+/* ---------- lista filtrada por aba/etiqueta ---------- */
+.zf-chatlist {
+  position: fixed; z-index: 15; pointer-events: auto; background: var(--bg); display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(15, 23, 42, .06);
+}
+.zf-cl-head { --c: var(--accent); display: flex; align-items: center; gap: 8px; padding: 9px 8px 9px 14px; border-bottom: 3px solid var(--c); font-size: 15px; }
+.zf-cl-head .zf-tbchip-n { background: var(--c); }
+.zf-cl-search { margin: 8px 10px; flex: 0 0 auto; }
+.zf-cl-list { flex: 1; overflow-y: auto; }
+.zf-cl-row { display: flex; align-items: center; gap: 12px; height: 72px; padding: 0 0 0 12px; cursor: pointer; }
+.zf-cl-row:hover { background: var(--surface); }
+.zf-av {
+  position: relative; flex-shrink: 0; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: #dfe5e7; color: #54656f; font-weight: 700; font-size: 15px;
+}
+.zf.dark .zf-av { background: #2a3942; color: #aebac1; }
+.zf-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.zf-cl-mid { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 3px; border-bottom: 1px solid var(--border); padding-right: 12px; }
+.zf-cl-top, .zf-cl-bottom { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.zf-cl-name { flex: 1; min-width: 0; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-cl-time { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.zf-cl-time.unread { color: #1fa855; font-weight: 600; }
+.zf-cl-prev { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-cl-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #25d366; color: #fff; font-size: 12px; font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
+.zf.dark .zf-cl-badge { color: #111b21; }
+.zf-cl-more { width: 24px; height: 24px; opacity: 0; }
+.zf-cl-row:hover .zf-cl-more { opacity: 1; }
+
+/* ---------- quadro de atendimento (Kanban) ---------- */
+.zf-kanban { position: fixed; inset: 0; z-index: 60; pointer-events: auto; background: rgba(8, 15, 25, .45); display: flex; padding: 22px; outline: none; }
+.zf-kb-inner { flex: 1; min-width: 0; background: var(--bg); border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+.zf-kb-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--border); color: var(--accent); }
+.zf-kb-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.zf-kb-board { flex: 1; min-height: 0; display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; padding: 14px 16px; }
+.zf-kb-col { --c: var(--accent); width: 272px; flex-shrink: 0; max-height: 100%; display: flex; flex-direction: column; background: var(--surface); border-radius: 10px; border-top: 4px solid var(--c); }
+.zf-kb-col.over { outline: 2px dashed var(--c); outline-offset: -2px; background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
+.zf-kb-colh { display: flex; align-items: center; gap: 8px; padding: 9px 8px 9px 12px; font-weight: 700; font-size: 14px; }
+.zf-kb-colh .zf-tbchip-n { background: var(--c); }
+.zf-kb-cards { flex: 1; min-height: 70px; overflow-y: auto; padding: 0 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.zf-kb-card { display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: grab; }
+.zf-kb-card:hover { border-color: var(--accent); }
+.zf-kb-card.dragging { opacity: .4; }
+.zf-kb-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-kb-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-kb-x { width: 24px; height: 24px; opacity: 0; }
+.zf-kb-card:hover .zf-kb-x { opacity: 1; }
+.zf-kb-empty { font-size: 12.5px; color: var(--muted); text-align: center; padding: 16px 6px; border: 1px dashed var(--border); border-radius: 8px; }
+.zf-kb-add { flex-shrink: 0; width: 200px; height: 44px; border: 1px dashed var(--border); border-radius: 10px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font-weight: 600; }
+.zf-kb-add:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ---------- abas do CRM no painel ---------- */
+.zf-tabchip {
+  --c: var(--accent); display: inline-flex; align-items: center; gap: 6px; height: 28px; max-width: 100%; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.zf-tabchip:hover { border-color: var(--c); }
+.zf-tabchip.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--bg)); }
+.zf-tabchip.add { border-style: dashed; color: var(--muted); }
+.zf-tabchip-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
+.zf-cl-head .zf-tabchip-dot, .zf-kb-colh .zf-tabchip-dot { width: 11px; height: 11px; }
+.zf-tablist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.zf-tabrow { --c: var(--accent); display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.zf-tabrow-name { flex: 1; min-width: 0; text-align: left; border: 0; background: none; font-weight: 600; font-size: 14px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); padding: 4px 0; }
+.zf-tabrow-name:hover { color: var(--accent); }
+.zf-contactcard .zf-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; flex-shrink: 0; }
+
+/* ---------- tela de criação (resposta rápida / script) ---------- */
+.zf-edhead { margin: 2px 0 6px; }
+.zf-edtitle { text-align: center; font-size: 19px; font-weight: 700; margin: 8px 0 12px; }
+.zf-iconbtn.accent.big { color: var(--accent); }
+.zf-inputwrap { position: relative; }
+.zf-inputwrap .zf-input { padding-right: 42px; }
+.zf-inputwrap .zf-iconbtn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.zf-actcard { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin: 4px 0 14px; background: var(--bg); box-shadow: 0 1px 4px rgba(15, 23, 42, .06); }
+.zf-actcard-h { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.zf-actcard-title { font-size: 16.5px; font-weight: 700; }
+.zf-tagpill { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: #7d96ea; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.zf-tagpill:hover { background: var(--accent); }
+.zf-actempty { text-align: center; padding: 16px 8px 4px; color: var(--muted); font-size: 13.5px; }
+.zf-actempty svg { color: var(--accent); }
+.zf-actempty-t { font-size: 17px; font-weight: 700; color: var(--text); margin: 8px 0 4px; }
+.zf-actlist { display: flex; flex-direction: column; }
+.zf-act { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: var(--surface); }
+.zf-act.open { background: var(--bg); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.zf-act-h { display: flex; align-items: center; gap: 6px; padding: 7px 6px 7px 10px; cursor: pointer; user-select: none; }
+.zf-act-num { width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; display: grid; place-items: center; flex-shrink: 0; }
+.zf-act-icon { color: var(--accent); }
+.zf-act.danger .zf-act-icon { color: var(--danger); }
+.zf-act-label { font-size: 13.5px; font-weight: 700; }
+.zf-act-sum { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-act-b { padding: 4px 12px 12px; }
+.zf-act-b > .zf-textarea { background: var(--bg); }
+.zf-thumb { width: 40px; height: 40px; border-radius: 6px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; flex-shrink: 0; color: var(--muted); }
+.zf-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.zf-step { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+.zf-step + .zf-step { border-top: 1px dashed var(--border); }
+
+/* ---------- menus: sanfona e emojis ---------- */
+.zf-accordion { min-width: 270px; padding: 6px; }
+.zf-accordion .zf-acc-h { font-size: 14.5px; padding: 10px 10px; }
+.zf-accordion .zf-acc-h.open { background: var(--surface-2); }
+.zf-acc-chev { margin-left: auto; color: var(--muted); }
+.zf-acc-body { margin: 2px 0 6px 20px; padding-left: 6px; border-left: 1px solid var(--border); }
+.zf-acc-body button { font-size: 13.5px; padding: 7px 10px; }
+.zf-emojis { display: grid; grid-template-columns: repeat(8, 34px); gap: 2px; max-width: none; }
+.zf-emojis button { width: 34px; height: 34px; padding: 0; justify-content: center; font-size: 19px; }
+
+/* ---------- janelas com o painel fechado ---------- */
+.zf-overlay.global { position: fixed; inset: 0; z-index: 90; align-items: center; pointer-events: auto; }
+.zf-overlay.global .zf-modal { max-width: 460px; }
+.zf-modal.wide { max-width: 720px; }

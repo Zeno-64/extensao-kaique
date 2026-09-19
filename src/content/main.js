@@ -16,7 +16,9 @@
 
   const boot = async () => {
     try {
+      await ZF.store.migrate().catch((e) => console.warn('[ZapFlow] migração', e));
       await ZF.ui.mount();
+      ZF.topbar.mount();
       ZF.runner.start();
       ZF.store.gcFiles().catch(() => {});
     } catch (e) {
