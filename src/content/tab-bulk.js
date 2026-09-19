@@ -57,25 +57,65 @@
       pauseEvery: s.bulkPauseEvery, pauseMinutes: s.bulkPauseMinutes,
     };
     let parsed = ZF.parseContacts(cfg.rawContacts || '', s.countryCode);
+    // destinatários escolhidos do próprio WhatsApp (conversas, grupos, etiquetas)
+    let picked = (cfg.picked || []).slice();
+    (defaults.recipients || []).forEach((c) => addPickedItem(c));
+
+    function addPickedItem(c) {
+      const phone = c.isGroup ? null : c.phone ? ZF.normalizePhone(c.phone, s.countryCode) : null;
+      if (!phone && !c.chatId) return false;
+      if (picked.some((x) => (phone && x.phone === phone) || (!phone && x.chatId === c.chatId))) return false;
+      picked.push({ phone, chatId: phone ? c.chatId || null : c.chatId, name: c.name || '', isGroup: !!c.isGroup });
+      return true;
+    }
+    /** Lista final: linhas digitadas/planilha + escolhidos no WhatsApp (sem duplicar telefones) */
+    const allRecipients = () => {
+      const phones = new Set(parsed.contacts.map((c) => c.phone));
+      const extra = picked.filter((p) => !p.phone || !phones.has(p.phone)).map((p) => ({ phone: p.phone, chatId: p.chatId, name: p.name, vars: {}, isGroup: p.isGroup }));
+      return [...parsed.contacts, ...extra];
+    };
 
     const name = ui.input({ value: cfg.name, placeholder: 'Ex.: Confirmações de segunda-feira' });
     const raw = h('textarea', {
-      class: 'zf-textarea', rows: 7, value: cfg.rawContacts || '',
-      placeholder: 'Um contato por linha:\n11987654321;Maria Silva\nJoão, 21 99876-5432\n\nOu importe um CSV com cabeçalho (telefone;nome;outras colunas).',
+      class: 'zf-textarea', rows: 6, value: cfg.rawContacts || '',
+      placeholder: 'Um contato por linha:\n11987654321;Maria Silva\nJoão, 21 99876-5432\n\nOu importe uma planilha (.xlsx/.csv) com cabeçalho (telefone;nome;outras colunas).',
     });
     const summary = h('div', { class: 'zf-hint' });
+    const pickedEl = h('div');
     let editor;
     const editorWrap = h('div');
+
+    const renderPicked = () => {
+      pickedEl.replaceChildren();
+      if (!picked.length) return;
+      const groups = picked.filter((p) => p.isGroup).length;
+      ZF.append(pickedEl, h('details', { style: { margin: '8px 0 0' } },
+        h('summary', { style: { cursor: 'pointer', fontSize: '12.5px', fontWeight: 700 } },
+          `Escolhidos do WhatsApp: ${picked.length}${groups ? ` (${groups} grupo(s))` : ''}`),
+        h('div', { class: 'zf-contacts', style: { marginTop: '6px', maxHeight: '200px' } }, picked.map((p, i) => h('div', { class: 'zf-contact' },
+          icon(p.isGroup ? 'users' : 'user', 13),
+          h('span', { class: 'zf-grow' }, p.name || ZF.fmtPhone(p.phone) || p.chatId),
+          h('span', { class: 'zf-muted zf-small' }, p.isGroup ? 'Grupo' : ZF.fmtPhone(p.phone)),
+          h('button', { class: 'zf-iconbtn', title: 'Remover', onclick: (e) => { e.preventDefault(); picked.splice(i, 1); renderPicked(); renderSummary(); } }, icon('x', 13))))),
+        h('button', { class: 'zf-btn sm', style: { marginTop: '6px' }, onclick: (e) => { e.preventDefault(); picked = []; renderPicked(); renderSummary(); } }, 'Remover todos')));
+    };
+    const addPicked = (items, source) => {
+      const n = (items || []).filter(addPickedItem).length;
+      renderPicked();
+      renderSummary();
+      ui.toast(`${n} destinatário(s) adicionados${source ? ' de ' + source : ''}`, n ? 'ok' : 'info');
+    };
 
     const renderSummary = () => {
       summary.replaceChildren();
       const p = parsed;
-      if (!raw.value.trim()) { ZF.append(summary, 'Nenhum contato ainda.'); return; }
-      ZF.append(summary, 
-        h('span', { style: { color: 'var(--ok)', fontWeight: 700 } }, `✓ ${p.contacts.length} válido(s)`),
-        p.invalid.length ? h('span', { style: { color: 'var(--danger)' } }, ` • ${p.invalid.length} inválido(s)`) : '',
+      const total = allRecipients().length;
+      if (!raw.value.trim() && !picked.length) { ZF.append(summary, 'Nenhum destinatário ainda.'); return; }
+      ZF.append(summary,
+        h('span', { style: { color: 'var(--ok)', fontWeight: 700 } }, `✓ ${total} destinatário(s)`),
+        p.invalid.length ? h('span', { style: { color: 'var(--danger)' } }, ` • ${p.invalid.length} linha(s) inválida(s)`) : '',
         p.duplicates ? ` • ${p.duplicates} duplicado(s) ignorado(s)` : '',
-        p.contacts.length ? ` • tempo estimado ~${ZF.fmtDuration(estimate(p.contacts.length, readDelays()))}` : '');
+        total ? ` • tempo estimado ~${ZF.fmtDuration(estimate(total, readDelays()))}` : '');
       if (p.columns.length) ZF.append(summary, h('div', {}, 'Colunas viram variáveis: ', p.columns.map((c) => `{${c}} `)));
       if (p.invalid.length) {
         ZF.append(summary, h('details', {}, h('summary', { style: { cursor: 'pointer' } }, 'Ver linhas inválidas'),
@@ -104,19 +144,45 @@
     const importBtn = h('button', {
       class: 'zf-btn sm', onclick: ui.safe(async (e) => {
         e.preventDefault();
-        const f = await ZF.pickFile('.csv,.txt,text/csv,text/plain');
+        const f = await ZF.pickFile('.xlsx,.csv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         if (!f) return;
-        let text = await ZF.readFileAsText(f);
-        if (text.includes('�')) {
-          // arquivos do Excel em português costumam vir em Windows-1252
-          const buf = await f.arrayBuffer();
-          text = new TextDecoder('windows-1252').decode(buf);
-        }
+        const rows = await ZF.readSpreadsheet(f);
+        const text = ZF.toCSV(rows).replace(/^\uFEFF/, '');
         raw.value = raw.value.trim() ? raw.value.trim() + '\n' + text : text;
         raw.dispatchEvent(new Event('input'));
-        ui.toast(`Arquivo "${f.name}" importado`, 'ok');
+        ui.toast(`Planilha "${f.name}" importada (${rows.length} linhas)`, 'ok');
       }),
-    }, icon('upload', 14), 'Importar CSV/TXT');
+    }, icon('grid', 14), 'Planilha');
+
+    const fromWhatsApp = h('button', {
+      class: 'zf-btn sm', onclick: (e) => {
+        e.preventDefault();
+        ui.menu(e.currentTarget, [
+          { title: 'Adicionar destinatários' },
+          { label: 'Conversas…', icon: 'message', onClick: async () => addPicked(await ui.pickChats({ title: 'Escolher conversas', filter: 'contacts' }), 'conversas') },
+          { label: 'Grupos (envia no grupo)…', icon: 'users', onClick: async () => addPicked(await ui.pickChats({ title: 'Enviar para grupos', filter: 'groups' }), 'grupos') },
+          { label: 'Participantes de grupos…', icon: 'user', onClick: async () => {
+            const groups = await ui.pickChats({ title: 'Participantes de quais grupos?', filter: 'groups', okLabel: 'Buscar participantes' });
+            if (!groups || !groups.length) return;
+            const all = [];
+            for (const g of groups) {
+              const r = await ZF.wa.call('groupParticipants', { chatId: g.chatId }, 30000);
+              r.participants.filter((p) => p.phone).forEach((p) => all.push({ phone: p.phone, name: p.name }));
+            }
+            addPicked(all, 'participantes');
+          } },
+          { label: 'Etiqueta ou lista do WhatsApp…', icon: 'tag', onClick: async () => { const r = await ui.pickWaLabel(); if (r) addPicked(r.chats, r.label.name); } },
+          '-',
+          { title: 'Minhas etiquetas (ZapFlow)' },
+          ...myTagItems(),
+        ]);
+      },
+    }, icon('plus', 14), 'Do WhatsApp');
+    function myTagItems() {
+      const list = ZF.crm ? ZF.crm.tags() : [];
+      if (!list.length) return [{ label: 'Nenhuma etiqueta criada (aba Contato)', icon: 'tag', onClick: () => ui.setTab('crm') }];
+      return list.map((t) => ({ label: t.name, icon: 'tag', onClick: () => addPicked(ZF.crm.chatsWithTag(t.id), t.name) }));
+    }
 
     const minD = ui.input({ type: 'number', min: 3, value: cfg.minDelay });
     const maxD = ui.input({ type: 'number', min: 3, value: cfg.maxDelay });
@@ -135,11 +201,13 @@
 
     rebuildEditor();
     renderSummary();
+    renderPicked();
 
     const collect = () => ({
       name: name.value.trim() || `Campanha ${ZF.fmtDateTime(Date.now())}`,
       rawContacts: raw.value,
-      contacts: parsed.contacts.map((c) => ({ ...c, status: 'pending', error: null, at: null })),
+      picked: picked.slice(),
+      contacts: allRecipients().map((c) => ({ ...c, status: 'pending', error: null, at: null })),
       columns: parsed.columns,
       blocks: editor.get(),
       ...readDelays(),
@@ -148,7 +216,7 @@
     const save = async (start) => {
       const data = collect();
       if (start) {
-        if (!data.contacts.length) { ui.toast('Adicione pelo menos um contato válido', 'error'); return; }
+        if (!data.contacts.length) { ui.toast('Adicione pelo menos um destinatário válido', 'error'); return; }
         if (!data.blocks.length) { ui.toast('A mensagem está vazia', 'error'); return; }
         const missing = ZF.missingVars(data.blocks, Object.fromEntries(data.columns.map((c) => [c, 1])));
         const later = startMode.value === 'later';
@@ -180,13 +248,14 @@
 
     ZF.append(body, 
       h('button', { class: 'zf-back', onclick: () => go(camp ? { name: 'detail', id: camp.id } : { name: 'list' }) }, icon('chevronLeft', 16), 'Voltar'),
-      h('div', { class: 'zf-h2' }, icon('users', 18), camp ? 'Editar campanha' : 'Nova campanha'),
+      h('div', { class: 'zf-h2' }, icon('megaphone', 18), camp ? 'Editar disparo' : 'Novo disparo em massa'),
       ui.field('Nome da campanha', name),
       h('div', { class: 'zf-section' },
-        h('div', { class: 'zf-row', style: { justifyContent: 'space-between', marginBottom: '8px' } },
-          h('div', { class: 'zf-h3', style: { margin: 0 } }, 'Contatos'), importBtn),
-        raw, summary,
-        h('div', { class: 'zf-hint' }, `Números com até 11 dígitos recebem o DDI +${s.countryCode}. Para outros países, comece com +.`)),
+        h('div', { class: 'zf-row', style: { justifyContent: 'space-between', marginBottom: '8px', gap: '6px' } },
+          h('div', { class: 'zf-h3', style: { margin: 0 } }, 'Destinatários'),
+          h('div', { class: 'zf-row', style: { gap: '6px' } }, importBtn, fromWhatsApp)),
+        raw, summary, pickedEl,
+        h('div', { class: 'zf-hint' }, `Números com até 11 dígitos recebem o DDI +${s.countryCode}. "Do WhatsApp" adiciona conversas, grupos, participantes e etiquetas.`)),
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-row', style: { justifyContent: 'space-between', marginBottom: '8px' } },
           h('div', { class: 'zf-h3', style: { margin: 0 } }, 'Mensagem'),
@@ -229,14 +298,16 @@
     const contacts = c.contacts.filter((x) => !onlyFailed || x.status === 'failed');
     if (!contacts.length) { ui.toast('Nenhum contato com falha para reenviar'); return; }
     const cols = (c.columns || []).filter((k) => k !== 'telefone');
+    const withPhone = contacts.filter((x) => x.phone);
     const rawContacts = cols.length
-      ? ZF.toCSV([['telefone', ...cols], ...contacts.map((x) => [x.phone, ...cols.map((k) => (x.vars || {})[k] || '')])]).replace(/^﻿/, '')
-      : contacts.map((x) => [x.phone, x.name].filter(Boolean).join(';')).join('\n');
+      ? ZF.toCSV([['telefone', ...cols], ...withPhone.map((x) => [x.phone, ...cols.map((k) => (x.vars || {})[k] || '')])]).replace(/^\uFEFF/, '')
+      : withPhone.map((x) => [x.phone, x.name].filter(Boolean).join(';')).join('\n');
     const copy = {
       ...ZF.clone(c), id: ZF.uid(), createdAt: Date.now(), status: 'draft',
       name: c.name + (onlyFailed ? ' (reenvio)' : ' (cópia)'),
       contacts: contacts.map((x) => ({ ...x, status: 'pending', error: null, at: null })),
       rawContacts,
+      picked: contacts.filter((x) => !x.phone && x.chatId).map((x) => ({ phone: null, chatId: x.chatId, name: x.name, isGroup: !!x.isGroup })),
       startedAt: null, finishedAt: null, nextAt: null, startAt: null, batchCount: 0, consecutiveFails: 0, pauseReason: null,
     };
     await store.update('campaigns', (list) => { list.unshift(copy); return list; });
@@ -305,7 +376,7 @@
       h('div', { class: 'zf-contacts' },
         shown.length ? shown.slice(0, 500).map((x) => h('div', { class: 'zf-contact', title: x.error || '' },
           h('span', { style: { color: stIcon[x.status][1], display: 'inline-flex' } }, icon(stIcon[x.status][0], 14)),
-          h('span', { class: 'zf-grow' }, x.name || '—'),
+          h('span', { class: 'zf-grow' }, x.name || (x.phone ? '' : 'Grupo/conversa')),
           h('span', { class: 'zf-muted zf-small' }, ZF.fmtPhone(x.phone))))
           : h('div', { class: 'zf-empty' }, 'Nenhum contato aqui.')),
       h('div', { class: 'zf-row', style: { gap: '6px', flexWrap: 'wrap', marginTop: '10px' } },
@@ -352,5 +423,5 @@
     renderList(body);
   }
 
-  ui.registerTab('bulk', { icon: 'users', title: 'Envio em massa', render });
+  ui.registerTab('bulk', { icon: 'megaphone', title: 'Disparos em massa', render });
 })();

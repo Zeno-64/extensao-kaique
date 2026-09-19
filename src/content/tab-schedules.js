@@ -10,6 +10,7 @@
     weekdays: 'Dias úteis (seg–sex)',
     weekly: 'Toda semana',
     monthly: 'Todo mês',
+    yearly: 'Todo ano',
   };
   const STATUS = { pending: 'Agendado', paused: 'Pausado', sent: 'Enviado', failed: 'Falhou', missed: 'Perdido' };
 
@@ -62,6 +63,16 @@
       renderTarget();
     });
 
+    const pickOther = ui.safe(async () => {
+      const r = await ui.pickChats({ title: 'Escolher contato ou grupo', multi: false });
+      const info = r && r[0];
+      if (!info) return;
+      target = { type: info.phone ? 'phone' : 'chat', phone: info.phone || '', chatId: info.chatId || null, name: info.name || '' };
+      phone.value = info.phone ? ZF.fmtPhone(info.phone) : '';
+      name.value = info.name || '';
+      renderTarget();
+    });
+
     const editor = ui.blocksEditor(sched ? sched.blocks : defaults.blocks || []);
     const loadReply = h('button', {
       class: 'zf-btn sm', onclick: ui.safe(async (e) => {
@@ -81,7 +92,9 @@
       h('div', { class: 'zf-field' },
         h('div', { class: 'zf-row', style: { justifyContent: 'space-between', marginBottom: '6px' } },
           h('span', { class: 'zf-label', style: { margin: 0 } }, 'Destinatário'),
-          h('button', { class: 'zf-btn sm', onclick: (e) => { e.preventDefault(); useActive(); } }, icon('user', 14), 'Usar conversa aberta')),
+          h('div', { class: 'zf-row', style: { gap: '6px' } },
+            h('button', { class: 'zf-btn sm', onclick: (e) => { e.preventDefault(); useActive(); } }, icon('user', 14), 'Conversa aberta'),
+            h('button', { class: 'zf-btn sm', onclick: (e) => { e.preventDefault(); pickOther(); } }, icon('users', 14), 'Escolher…'))),
         groupInfo, phoneFields),
       h('div', { class: 'zf-field' },
         h('div', { class: 'zf-row', style: { justifyContent: 'space-between', marginBottom: '6px' } },

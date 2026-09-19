@@ -9,8 +9,9 @@
     panelWidth: 380,
     clickAction: 'insert', // 'insert' | 'send'
     countryCode: '55',
-    fastOpen: true, // abrir conversas sem recarregar a página (com fallback automático)
-    restoreChat: true, // voltar para a conversa anterior após envio automático
+    directSend: true, // enviar pelas funções internas do WhatsApp, sem abrir a conversa
+    allowReload: false, // último recurso: recarregar a página para abrir a conversa pelo link
+    restoreChat: true, // voltar para a conversa anterior quando o envio precisou abrir outra conversa
     lateToleranceMin: 720, // agendamentos atrasados além disso viram "perdidos" (0 = sem limite)
     autoOpenWhatsApp: true,
     notifications: true,
@@ -19,6 +20,11 @@
     bulkPauseEvery: 20,
     bulkPauseMinutes: 5,
     filesMaxMB: 30,
+    eventMinutes: 60, // duração padrão dos eventos do Google Agenda
+    aiModel: 'claude-opus-5',
+    aiEffort: 'low',
+    aiInstructions: '',
+    aiLanguage: 'inglês',
   };
 
   const DEFAULTS = {
@@ -27,8 +33,13 @@
     replies: [],
     schedules: [],
     campaigns: [],
+    reminders: [],
+    crmChats: {}, // { [chave da conversa]: { name, phone, chatId, isGroup, tags:[], notes:[] } }
+    crmTags: [],
     runner: {},
   };
+  // chaves que nunca vão para o backup (a chave da API da IA fica só neste navegador)
+  const PRIVATE_KEYS = ['runner', 'runnerLock', 'aiKey'];
 
   // Fila por chave para evitar escritas concorrentes dentro desta aba
   const locks = {};
@@ -117,21 +128,35 @@
     /* ----- backup ----- */
     async exportAll() {
       const all = await chrome.storage.local.get(null);
-      delete all.runner;
-      return { app: 'ZapFlow', version: 1, exportedAt: new Date().toISOString(), data: all };
+      PRIVATE_KEYS.forEach((k) => delete all[k]);
+      return { app: 'ZapFlow', version: 2, exportedAt: new Date().toISOString(), data: all };
     },
     async importAll(json, mode = 'merge') {
       if (!json || json.app !== 'ZapFlow' || !json.data) throw new Error('Arquivo de backup inválido');
-      const d = json.data;
+      const d = { ...json.data };
+      PRIVATE_KEYS.forEach((k) => delete d[k]);
       if (mode === 'replace') {
+        const keep = await chrome.storage.local.get('aiKey');
         await chrome.storage.local.clear();
-        await chrome.storage.local.set(d);
+        await chrome.storage.local.set({ ...d, ...keep });
         return;
       }
-      const cur = await store.getMany(['categories', 'replies', 'schedules', 'campaigns']);
+      const cur = await store.getMany(['categories', 'replies', 'schedules', 'campaigns', 'reminders', 'crmTags', 'crmChats']);
       const merge = (a, b) => {
         const ids = new Set(a.map((x) => x.id));
         return a.concat((b || []).filter((x) => !ids.has(x.id)));
+      };
+      const mergeChats = (a, b) => {
+        const out = { ...a };
+        Object.entries(b || {}).forEach(([k, v]) => {
+          if (!out[k]) out[k] = v;
+          else {
+            out[k] = { ...v, ...out[k] };
+            out[k].tags = [...new Set([...(out[k].tags || []), ...(v.tags || [])])];
+            out[k].notes = merge(out[k].notes || [], v.notes);
+          }
+        });
+        return out;
       };
       const files = {};
       Object.keys(d).filter((k) => k.startsWith('file:')).forEach((k) => (files[k] = d[k]));
@@ -141,6 +166,9 @@
         replies: merge(cur.replies, d.replies),
         schedules: merge(cur.schedules, d.schedules),
         campaigns: merge(cur.campaigns, d.campaigns),
+        reminders: merge(cur.reminders, d.reminders),
+        crmTags: merge(cur.crmTags, d.crmTags),
+        crmChats: mergeChats(cur.crmChats, d.crmChats),
       });
     },
 

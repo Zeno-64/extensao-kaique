@@ -48,7 +48,12 @@
     const rendered = ZF.renderBlocks(reply.blocks, vars, false);
     if (mode === 'send') {
       ui.toast('Enviando…');
-      await ZF.runner.exclusive(() => ZF.wa.sendBlocks(rendered));
+      const target = { chatId: info && info.chatId, phone: info && info.phone };
+      await ZF.runner.exclusive(async () => {
+        if (!target.chatId && !target.phone) return ZF.wa.sendBlocks(rendered);
+        const r = await ZF.wa.deliver(target, rendered, ui.settings, { isOpen: true });
+        if (!r.ok) throw new Error(r.error || 'Falha no envio');
+      });
       ui.toast('Mensagem enviada', 'ok');
     } else {
       const r = await ZF.wa.insertBlocks(rendered);

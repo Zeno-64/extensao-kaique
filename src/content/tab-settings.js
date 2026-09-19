@@ -22,16 +22,24 @@
       const d = await ZF.wa.diagnostics();
       const yes = (v) => (v ? '✅' : '❌');
       const m = d.bridge || {};
+      const direct = m.chats && m.sendText && m.widFactory && m.findChat;
       diagOut.textContent = [
         `${yes(d.appReady)} WhatsApp Web carregado`,
+        `${yes(m.chats)} Lista de conversas (módulo interno)`,
+        `${yes(m.sendText)} Envio de texto direto`,
+        `${yes(m.sendMedia)} Envio de arquivos e áudio de voz direto`,
+        `${yes(m.cmd)} Abrir conversas sem recarregar`,
+        `${yes(m.widFactory && m.findChat && m.queryExists)} Números novos e verificação de WhatsApp`,
+        `${yes(m.contacts)} Contatos (exportar)`,
+        `${yes(m.labels)} Etiquetas e listas do WhatsApp`,
+        `${yes(m.groups)} Participantes de grupos`,
         `${yes(d.chatOpen)} Conversa aberta`,
-        `${yes(d.compose)} Campo de mensagem encontrado`,
+        `${yes(d.compose)} Campo de mensagem encontrado (envio pela interface)`,
         `${yes(d.attach)} Botão de anexo encontrado`,
-        `${yes(m.collections && m.cmd)} Abertura rápida de conversas (módulos internos)`,
-        `${yes(m.widFactory && m.findChat)} Abrir número novo sem recarregar`,
         '',
-        d.bridge && m.collections && m.cmd ? 'Modo rápido disponível.' : 'Modo rápido indisponível — a extensão usará o modo seguro (abre a conversa pelo link e recarrega a página).',
-        !d.chatOpen ? 'Abra uma conversa para testar o campo de mensagem.' : '',
+        direct ? 'Envio direto disponível: agendamentos e disparos não recarregam nem trocam a conversa aberta.'
+          : d.compose ? 'Envio direto indisponível: a extensão vai abrir a conversa e enviar pela interface (sem recarregar).'
+            : 'Envio direto indisponível. Abra uma conversa e rode de novo para testar o envio pela interface.',
       ].join('\n');
     });
 
@@ -62,7 +70,7 @@
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Painel'),
         ui.checkbox('Empurrar o WhatsApp para o lado (não cobrir a conversa)', s.pushLayout, (v) => save({ pushLayout: v })),
-        ui.field('Largura do painel', ui.select([340, 380, 420, 480].map((v) => ({ value: v, label: `${v}px` })), s.panelWidth, { onchange: (e) => save({ panelWidth: Number(e.target.value) }) })),
+        ui.field('Largura do painel', ui.select([380, 420, 480].map((v) => ({ value: v, label: `${v}px` })), s.panelWidth, { onchange: (e) => save({ panelWidth: Number(e.target.value) }) })),
         ui.field('Ao clicar numa resposta rápida', ui.select([
           { value: 'insert', label: 'Inserir no campo (para revisar antes)' },
           { value: 'send', label: 'Enviar direto' },
@@ -71,8 +79,9 @@
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Envios automáticos'),
         ui.field('DDI padrão', ui.input({ value: s.countryCode, style: { width: '90px' }, onchange: (e) => save({ countryCode: ZF.onlyDigits(e.target.value) || '55' }) }), 'Adicionado a números com até 11 dígitos (ex.: 11 98765-4321).'),
-        ui.checkbox('Abrir conversas sem recarregar a página (modo rápido, com fallback automático)', s.fastOpen, (v) => save({ fastOpen: v })),
-        ui.checkbox('Voltar para a conversa em que eu estava depois de um envio automático', s.restoreChat, (v) => save({ restoreChat: v })),
+        ui.checkbox('Enviar direto pelo WhatsApp, sem abrir a conversa (recomendado)', s.directSend, (v) => save({ directSend: v })),
+        ui.checkbox('Se não der para enviar sem recarregar, recarregar a página e abrir a conversa pelo link (último recurso)', s.allowReload, (v) => save({ allowReload: v })),
+        ui.checkbox('Voltar para a conversa em que eu estava quando um envio precisar abrir outra conversa', s.restoreChat, (v) => save({ restoreChat: v })),
         ui.checkbox('Abrir o WhatsApp Web automaticamente quando houver envio programado', s.autoOpenWhatsApp, (v) => save({ autoOpenWhatsApp: v })),
         ui.checkbox('Mostrar notificações (campanha concluída, falhas)', s.notifications, (v) => save({ notifications: v })),
         ui.field('Tolerância de atraso dos agendamentos (minutos)', num('lateToleranceMin', 0, 10080), 'Se o computador estava desligado na hora marcada, envia com atraso até esse limite. 0 = sempre envia.')),

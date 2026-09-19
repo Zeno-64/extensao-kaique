@@ -87,7 +87,7 @@
 
   /* ---------- modelos de mensagem ---------- */
   ZF.normKey = (s) => String(s || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   ZF.firstName = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 
@@ -185,7 +185,7 @@
 
   /* ---------- CSV / lista de contatos ---------- */
   ZF.parseCSV = (text) => {
-    text = String(text || '').replace(/^﻿/, '');
+    text = String(text || '').replace(/^\uFEFF/, '');
     const firstLine = text.split(/\r?\n/)[0] || '';
     const counts = { ';': 0, ',': 0, '\t': 0 };
     for (const ch of firstLine) if (ch in counts) counts[ch]++;
@@ -216,8 +216,11 @@
    * Converte texto colado ou CSV em contatos.
    * Aceita "numero;nome", "nome,numero" ou CSV com cabeçalho (colunas extras viram variáveis).
    */
-  ZF.parseContacts = (text, cc = '55') => {
-    const rows = ZF.parseCSV(text);
+  ZF.parseContacts = (text, cc = '55') => ZF.parseContactRows(ZF.parseCSV(text), cc);
+
+  /** Mesmo que parseContacts, a partir de linhas já separadas (CSV ou planilha .xlsx) */
+  ZF.parseContactRows = (inputRows, cc = '55') => {
+    const rows = inputRows.map((r) => r.map((c) => String(c == null ? '' : c).trim())).filter((r) => r.some((c) => c));
     const result = { contacts: [], invalid: [], duplicates: 0, columns: [] };
     if (!rows.length) return result;
     let header = null;
@@ -260,7 +263,7 @@
     return result;
   };
 
-  ZF.toCSV = (rows) => '﻿' + rows.map((r) => r.map((c) => {
+  ZF.toCSV = (rows) => '\uFEFF' + rows.map((r) => r.map((c) => {
     const s = String(c == null ? '' : c);
     return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }).join(';')).join('\r\n');
@@ -377,6 +380,17 @@
     corner: '<polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>',
     loader: '<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>',
     tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+    bell: '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    sparkles: '<path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 14l.8 2.2 2.2.8-2.2.8L19 20l-.8-2.2-2.2-.8 2.2-.8z"/>',
+    megaphone: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>',
+    mic: '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+    externalLink: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+    grid: '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/>',
+    refresh: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+    checkSquare: '<polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    note: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    square: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
   };
   ZF.icon = (name, size = 18, cls = '') => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -398,6 +412,209 @@
       svg.appendChild(child);
     }
     return svg;
+  };
+
+  /* ---------- conversas ---------- */
+  /** Chave estável de uma conversa para notas/etiquetas: telefone para contatos, id para grupos */
+  ZF.chatKey = (info) => {
+    if (!info) return null;
+    if (info.isGroup && info.chatId) return 'g:' + info.chatId;
+    if (info.phone) return 'p:' + ZF.onlyDigits(info.phone);
+    if (info.chatId) return 'c:' + info.chatId;
+    return info.name ? 'n:' + info.name : null;
+  };
+
+  /* ---------- Google Agenda (sem login: abre o formulário de novo evento) ---------- */
+  const gcalStamp = (ts) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}${ZF.pad(d.getMonth() + 1)}${ZF.pad(d.getDate())}T${ZF.pad(d.getHours())}${ZF.pad(d.getMinutes())}00`;
+  };
+  ZF.gcalUrl = ({ title, details, location, start, end }) => {
+    const p = new URLSearchParams({ action: 'TEMPLATE', text: title || '' });
+    p.set('dates', `${gcalStamp(start)}/${gcalStamp(end || start + 3600000)}`);
+    try { p.set('ctz', Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) { /* usa o fuso da conta */ }
+    if (details) p.set('details', details);
+    if (location) p.set('location', location);
+    return 'https://calendar.google.com/calendar/render?' + p.toString();
+  };
+  ZF.openGcal = (event) => window.open(ZF.gcalUrl(event), '_blank', 'noopener');
+
+  /* ---------- planilhas .xlsx (leitura e escrita, sem bibliotecas) ---------- */
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  const crc32 = (bytes) => {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const xmlEsc = (s) => String(s == null ? '' : s).replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch])
+    // remove caracteres de controle inválidos em XML
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+  const xmlUnesc = (s) => String(s).replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);/gi, (m, e) => {
+    const map = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" };
+    if (map[e.toLowerCase()]) return map[e.toLowerCase()];
+    return String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
+  });
+
+  /** Monta um .zip sem compressão (suficiente para .xlsx) */
+  const zipStore = (files) => {
+    const enc = new TextEncoder();
+    const chunks = [], central = [];
+    let offset = 0;
+    files.forEach(({ name, data }) => {
+      const nameBytes = enc.encode(name);
+      const bytes = typeof data === 'string' ? enc.encode(data) : data;
+      const crc = crc32(bytes);
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+      local.setUint16(8, 0, true); local.setUint32(14, crc, true);
+      local.setUint32(18, bytes.length, true); local.setUint32(22, bytes.length, true);
+      local.setUint16(26, nameBytes.length, true);
+      chunks.push(new Uint8Array(local.buffer), nameBytes, bytes);
+      const cen = new DataView(new ArrayBuffer(46));
+      cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true); cen.setUint16(8, 0x0800, true);
+      cen.setUint32(16, crc, true); cen.setUint32(20, bytes.length, true); cen.setUint32(24, bytes.length, true);
+      cen.setUint16(28, nameBytes.length, true); cen.setUint32(42, offset, true);
+      central.push(new Uint8Array(cen.buffer), nameBytes);
+      offset += 30 + nameBytes.length + bytes.length;
+    });
+    const centralSize = central.reduce((s, c) => s + c.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true); end.setUint32(16, offset, true);
+    return new Blob([...chunks, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+  };
+
+  const colName = (i) => { let s = ''; i += 1; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+
+  /** Gera um .xlsx (primeira linha em negrito). rows: array de arrays */
+  ZF.xlsxBlob = (rows, sheetName = 'Planilha1') => {
+    const sheetRows = rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => {
+      const ref = `${colName(ci)}${ri + 1}`;
+      const style = ri === 0 ? ' s="1"' : '';
+      if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"${style}><v>${v}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"${style}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+    }).join('')}</row>`).join('');
+    const widths = (rows[0] || []).map((_, ci) => Math.min(60, Math.max(10, ...rows.slice(0, 200).map((r) => String(r[ci] == null ? '' : r[ci]).length + 2))));
+    const cols = widths.length ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : '';
+    return zipStore([
+      { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+      { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+      { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEsc(sheetName).slice(0, 31)}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+      { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+      { name: 'xl/styles.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>' },
+      { name: 'xl/worksheets/sheet1.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${cols}<sheetData>${sheetRows}</sheetData></worksheet>` },
+    ]);
+  };
+  ZF.downloadXlsx = (filename, rows, sheetName) => {
+    const url = URL.createObjectURL(ZF.xlsxBlob(rows, sheetName));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
+    document.documentElement.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  /** Lê os arquivos de um .zip (métodos "store" e "deflate") */
+  const unzip = async (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    const dv = new DataView(buffer);
+    let eocd = -1;
+    for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('Arquivo não é uma planilha .xlsx válida');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const dec = new TextDecoder();
+    const out = {};
+    for (let n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true);
+      const csize = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const commentLen = dv.getUint16(p + 32, true);
+      const localOff = dv.getUint32(p + 42, true);
+      const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+      p += 46 + nameLen + extraLen + commentLen;
+      const lNameLen = dv.getUint16(localOff + 26, true);
+      const lExtraLen = dv.getUint16(localOff + 28, true);
+      const start = localOff + 30 + lNameLen + lExtraLen;
+      const raw = bytes.subarray(start, start + csize);
+      out[name] = async () => {
+        if (method === 0) return dec.decode(raw);
+        if (method !== 8) throw new Error('Compressão não suportada na planilha');
+        const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        return new Response(stream).text();
+      };
+    }
+    return out;
+  };
+
+  const cellIndex = (ref) => {
+    const letters = (ref.match(/^[A-Z]+/i) || ['A'])[0].toUpperCase();
+    let n = 0;
+    for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
+  };
+  const textOf = (xml) => { const parts = []; xml.replace(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g, (m, t) => parts.push(xmlUnesc(t))); return parts.join(''); };
+
+  /** Lê a primeira aba de um .xlsx e devolve as linhas (array de arrays de texto) */
+  ZF.readXlsx = async (file) => {
+    const files = await unzip(await file.arrayBuffer());
+    const read = async (name) => (files[name] ? files[name]() : null);
+    const shared = [];
+    const ss = await read('xl/sharedStrings.xml');
+    if (ss) ss.replace(/<si>([\s\S]*?)<\/si>/g, (m, si) => { shared.push(textOf(si)); return m; });
+    let sheetPath = 'xl/worksheets/sheet1.xml';
+    const wb = await read('xl/workbook.xml');
+    const rels = await read('xl/_rels/workbook.xml.rels');
+    if (wb && rels) {
+      const firstId = (wb.match(/<sheet\b[^>]*\br:id="([^"]+)"/) || [])[1];
+      const rel = firstId && (rels.match(new RegExp(`<Relationship\\b[^>]*Id="${firstId}"[^>]*>`)) || [])[0];
+      const target = rel && (rel.match(/Target="([^"]+)"/) || [])[1];
+      if (target) sheetPath = target.startsWith('/') ? target.slice(1) : 'xl/' + target.replace(/^\.\//, '');
+    }
+    const sheet = await read(sheetPath);
+    if (!sheet) throw new Error('Não encontrei a primeira aba da planilha');
+    const rows = [];
+    sheet.replace(/<row\b[^>]*>([\s\S]*?)<\/row>/g, (m, rowXml) => {
+      const row = [];
+      rowXml.replace(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, (cm, attrs, inner = '') => {
+        const ref = (attrs.match(/\br="([A-Z]+\d+)"/i) || [])[1];
+        const t = (attrs.match(/\bt="([^"]+)"/) || [])[1];
+        const v = (inner.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+        let val = '';
+        if (t === 's') val = shared[Number(v)] || '';
+        else if (t === 'inlineStr') val = textOf(inner);
+        else if (v != null) val = xmlUnesc(v);
+        const idx = ref ? cellIndex(ref) : row.length;
+        while (row.length < idx) row.push('');
+        row[idx] = val;
+        return cm;
+      });
+      rows.push(row);
+      return m;
+    });
+    return rows;
+  };
+
+  /** Lê CSV/TXT ou XLSX e devolve linhas */
+  ZF.readSpreadsheet = async (file) => {
+    if (/\.xlsx$/i.test(file.name) || file.type.includes('spreadsheetml')) return ZF.readXlsx(file);
+    let text = await ZF.readFileAsText(file);
+    if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(await file.arrayBuffer());
+    return ZF.parseCSV(text);
   };
 
   ZF.log = (...a) => console.debug('[ZapFlow]', ...a);

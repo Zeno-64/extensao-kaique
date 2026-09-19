@@ -109,7 +109,7 @@
   };
 
   ui.applySettings = (s) => {
-    const w = Math.max(320, Math.min(560, Number(s.panelWidth) || 380));
+    const w = Math.max(380, Math.min(560, Number(s.panelWidth) || 380));
     ui.wrap.style.setProperty('--w', w + 'px');
     document.documentElement.style.setProperty('--zapflow-w', w + 'px');
     document.documentElement.classList.toggle('zapflow-push', !!(ui.open && s.pushLayout));
@@ -117,7 +117,8 @@
 
   ui.toggle = (open = !ui.open, persist = true) => {
     ui.open = open;
-    ui.wrap.replaceChildren();
+    // mantém elementos flutuantes (ex.: alertas de lembrete) ao abrir/fechar
+    [...ui.wrap.children].forEach((c) => { if (!c.classList.contains('zf-keep')) c.remove(); });
     ui.wrap.appendChild(open ? ui.panel : ui.launcher);
     ui.applySettings(ui.settings || store.DEFAULT_SETTINGS);
     if (open) ui.render();
@@ -367,6 +368,11 @@
           });
           if (!lastTa) lastTa = ta;
           content = ta;
+        } else if ((b.mime || '').startsWith('audio/')) {
+          // áudio: pode ir como mensagem de voz (igual a um áudio gravado no WhatsApp)
+          content = h('div', {}, fileBox(b),
+            ui.checkbox('Enviar como mensagem de voz (áudio gravado)', b.asVoice !== false, (v) => { b.asVoice = v; }));
+          if (b.asVoice === undefined) b.asVoice = true;
         } else {
           const cap = h('textarea', {
             class: 'zf-textarea', rows: 2, value: b.caption || '', style: { minHeight: '48px' },
@@ -397,23 +403,58 @@
         },
       }, '+ campo'));
 
-    const addFile = ui.safe(async () => {
-      const file = await ZF.pickFile('*/*');
-      if (!file) return;
+    const pushFileBlock = async (file, extra = {}) => {
       ui.toast('Salvando arquivo…');
       const meta = await store.saveFile(file);
       const emptyIdx = blocks.length === 1 && blocks[0].type === 'text' && !blocks[0].text.trim() ? 0 : -1;
-      const nb = { type: 'file', ...meta, caption: '' };
+      const nb = { type: 'file', ...meta, caption: '', ...extra };
       if (emptyIdx === 0) blocks = [nb];
       else blocks.push(nb);
       render();
+    };
+    const addFile = ui.safe(async () => {
+      const file = await ZF.pickFile('*/*');
+      if (file) await pushFileBlock(file);
     });
+
+    // Gravação de áudio pelo microfone (vira mensagem de voz)
+    let recorder = null;
+    const recBtn = h('button', { class: 'zf-btn sm' }, icon('mic', 14), 'Gravar áudio');
+    const setRecLabel = (txt, danger) => {
+      recBtn.replaceChildren(icon(danger ? 'stop' : 'mic', 14), txt);
+      recBtn.classList.toggle('danger', !!danger);
+    };
+    recBtn.addEventListener('click', ui.safe(async (e) => {
+      e.preventDefault();
+      if (recorder) { recorder.stop(); return; }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const type = ['audio/ogg;codecs=opus', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+      recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const chunks = [];
+      const started = Date.now();
+      const timer = setInterval(() => setRecLabel(`Parar (${ZF.fmtDuration(Date.now() - started)})`, true), 500);
+      recorder.ondataavailable = (ev) => ev.data.size && chunks.push(ev.data);
+      recorder.onstop = ui.safe(async () => {
+        clearInterval(timer);
+        stream.getTracks().forEach((t) => t.stop());
+        recorder = null;
+        setRecLabel('Gravar áudio');
+        const mime = (type || 'audio/webm').split(';')[0];
+        const blob = new Blob(chunks, { type: mime });
+        if (blob.size < 500) return;
+        const file = new File([blob], `audio-${ZF.fmtDate(Date.now()).replace(/\//g, '-')}.${mime.includes('ogg') ? 'ogg' : 'webm'}`, { type: mime });
+        await pushFileBlock(file, { asVoice: true });
+      });
+      recorder.start(250);
+      setRecLabel('Parar (0s)', true);
+    }));
 
     const el = h('div', {},
       list,
-      h('div', { class: 'zf-row', style: { gap: '6px' } },
+      h('div', { class: 'zf-row', style: { gap: '6px', flexWrap: 'wrap' } },
         h('button', { class: 'zf-btn sm', onclick: (e) => { e.preventDefault(); blocks.push({ type: 'text', text: '' }); render(); } }, icon('plus', 14), 'Texto'),
-        h('button', { class: 'zf-btn sm', onclick: (e) => { e.preventDefault(); addFile(); } }, icon('paperclip', 14), 'Arquivo')),
+        h('button', { class: 'zf-btn sm', onclick: (e) => { e.preventDefault(); addFile(); } }, icon('paperclip', 14), 'Arquivo'),
+        recBtn),
       h('div', { class: 'zf-hint', style: { marginTop: '8px' } }, 'Variáveis (clique para inserir):'),
       chips,
       spintaxHint ? h('div', { class: 'zf-hint' }, 'Dica: use {Olá|Oi|E aí} para variar o texto entre os envios (ajuda a evitar bloqueios).') : null);
@@ -425,7 +466,146 @@
         .filter((b) => (b.type === 'file' ? !!b.fileId : !!(b.text || '').trim()))
         .map((b) => ({ ...b })),
       set: (nb) => { blocks = nb && nb.length ? ZF.clone(nb) : [{ type: 'text', text: '' }]; lastTa = null; render(); },
+      /** texto do primeiro bloco de texto (usado pela IA) */
+      focusText: () => { const ta = list.querySelector('textarea'); if (ta) ta.focus(); },
     };
+  };
+
+  /* ---------------- seletores de conversas / etiquetas ---------------- */
+  /**
+   * Lista as conversas do WhatsApp com busca e filtros e permite escolher várias.
+   * filter: 'all' | 'groups' | 'contacts' | 'unread'. Resolve com [chatInfo] ou null.
+   */
+  ui.pickChats = ({ title = 'Escolher conversas', filter = 'all', multi = true, okLabel = 'Adicionar' } = {}) => new Promise(async (resolve) => {
+    const r = await ZF.wa.bridge('listChats', {}, 20000);
+    if (!r || !r.ok) {
+      ui.toast('Não consegui ler suas conversas (recurso indisponível nesta versão do WhatsApp).', 'error', 5000);
+      resolve(null);
+      return;
+    }
+    let mode = filter;
+    let answered = false;
+    const selected = new Map();
+    const search = h('input', { class: 'zf-input', placeholder: 'Pesquisar por nome ou número…' });
+    const chipsEl = h('div', { class: 'zf-chips', style: { margin: '8px 0' } });
+    const list = h('div', { class: 'zf-contacts', style: { maxHeight: '46vh' } });
+    const countEl = h('span', { class: 'zf-muted zf-small' });
+    let modalRef;
+
+    const filtered = () => {
+      const q = ZF.normKey(search.value);
+      const qd = ZF.onlyDigits(search.value);
+      return r.chats.filter((c) => {
+        if (mode === 'groups' && !c.isGroup) return false;
+        if (mode === 'contacts' && c.isGroup) return false;
+        if (mode === 'unread' && !c.unread) return false;
+        if (!q) return true;
+        return ZF.normKey(c.name).includes(q) || (qd && (c.phone || '').includes(qd));
+      });
+    };
+    const renderChips = () => {
+      chipsEl.replaceChildren();
+      [['all', 'Todas'], ['contacts', 'Contatos'], ['groups', 'Grupos'], ['unread', 'Não lidas']].forEach(([k, label]) => chipsEl.appendChild(
+        h('button', { class: 'zf-chip' + (mode === k ? ' active' : ''), onclick: () => { mode = k; renderChips(); renderList(); } }, label)));
+      if (multi) chipsEl.appendChild(h('button', {
+        class: 'zf-chip', onclick: () => {
+          const items = filtered();
+          const all = items.every((c) => selected.has(c.chatId));
+          items.forEach((c) => (all ? selected.delete(c.chatId) : selected.set(c.chatId, c)));
+          renderList();
+        },
+      }, 'Marcar/desmarcar todos'));
+    };
+    const renderList = () => {
+      list.replaceChildren();
+      const items = filtered();
+      items.slice(0, 400).forEach((c) => {
+        const cb = h('input', { type: multi ? 'checkbox' : 'radio', checked: selected.has(c.chatId) });
+        const row = h('label', { class: 'zf-contact', style: { cursor: 'pointer' } }, cb,
+          icon(c.isGroup ? 'users' : 'user', 14),
+          h('span', { class: 'zf-grow' }, c.name || ZF.fmtPhone(c.phone) || c.chatId),
+          c.unread ? h('span', { class: 'zf-badge pending' }, c.unread) : null,
+          h('span', { class: 'zf-muted zf-small' }, c.isGroup ? 'Grupo' : ZF.fmtPhone(c.phone)));
+        cb.addEventListener('change', () => {
+          if (!multi) selected.clear();
+          if (cb.checked) selected.set(c.chatId, c); else selected.delete(c.chatId);
+          if (!multi) { answered = true; resolve([c]); modalRef.close(); return; }
+          countEl.textContent = `${selected.size} selecionada(s)`;
+        });
+        list.appendChild(row);
+      });
+      if (!items.length) list.appendChild(h('div', { class: 'zf-empty' }, 'Nenhuma conversa encontrada.'));
+      if (items.length > 400) list.appendChild(h('div', { class: 'zf-hint', style: { padding: '8px' } }, `Mostrando 400 de ${items.length}. Refine a busca.`));
+      countEl.textContent = `${selected.size} selecionada(s)`;
+    };
+    search.addEventListener('input', renderList);
+    renderChips();
+    renderList();
+    modalRef = ui.modal({
+      title,
+      body: h('div', {}, search, chipsEl, list, multi ? h('div', { style: { marginTop: '6px' } }, countEl) : null),
+      onClose: () => { if (!answered) resolve(null); },
+      actions: multi ? [
+        { label: 'Cancelar' },
+        { label: okLabel, class: 'primary', onClick: () => { answered = true; resolve([...selected.values()]); } },
+      ] : [],
+    });
+  });
+
+  /** Escolher uma etiqueta/lista do WhatsApp (Business: etiquetas; pessoal: listas). Resolve com {label, chats} */
+  ui.pickWaLabel = () => new Promise(async (resolve) => {
+    const [lr, cr] = await Promise.all([ZF.wa.bridge('listLabels', {}, 15000), ZF.wa.bridge('listChats', {}, 20000)]);
+    if (!lr || !lr.ok || !cr || !cr.ok) {
+      ui.toast('Etiquetas indisponíveis nesta versão do WhatsApp.', 'error', 4500);
+      resolve(null);
+      return;
+    }
+    let answered = false;
+    let modalRef;
+    const body = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } });
+    if (!lr.labels.length) body.appendChild(h('div', { class: 'zf-empty' }, 'Nenhuma etiqueta ou lista encontrada no seu WhatsApp.'));
+    lr.labels.forEach((l) => body.appendChild(h('div', {
+      class: 'zf-item', onclick: () => {
+        answered = true;
+        resolve({ label: l, chats: cr.chats.filter((c) => c.labels.includes(l.id)) });
+        modalRef.close();
+      },
+    }, h('span', { style: { width: '12px', height: '12px', borderRadius: '50%', background: l.color || 'var(--border)', flexShrink: 0 } }),
+    h('span', { class: 'zf-title' }, l.name),
+    h('span', { class: 'zf-uses' }, l.count))));
+    modalRef = ui.modal({ title: 'Etiquetas e listas do WhatsApp', body, onClose: () => { if (!answered) resolve(null); } });
+  });
+
+  /* ---------------- Google Agenda ---------------- */
+  /** Formulário rápido que abre o Google Agenda já preenchido */
+  ui.openEventEditor = (defaults = {}) => {
+    const s = ui.settings || store.DEFAULT_SETTINGS;
+    const start = defaults.start || (() => { const d = new Date(Date.now() + 86400000); d.setHours(9, 0, 0, 0); return d.getTime(); })();
+    const title = ui.input({ value: defaults.title || '', placeholder: 'Ex.: Consulta — Maria' });
+    const when = ui.input({ type: 'datetime-local', value: ZF.toLocalInput(start) });
+    const dur = ui.select([15, 30, 45, 60, 90, 120, 180].map((m) => ({ value: m, label: m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${m % 60 ? m % 60 : ''}` })), defaults.minutes || s.eventMinutes || 60);
+    const loc = ui.input({ value: defaults.location || '', placeholder: 'Endereço ou link da reunião (opcional)' });
+    const details = h('textarea', { class: 'zf-textarea', rows: 3, value: defaults.details || '' });
+    ui.modal({
+      title: 'Evento no Google Agenda',
+      body: h('div', {},
+        ui.field('Título', title),
+        h('div', { class: 'zf-grid2' }, ui.field('Início', when), ui.field('Duração', dur)),
+        ui.field('Local', loc),
+        ui.field('Descrição', details),
+        h('div', { class: 'zf-hint' }, 'Abre o Google Agenda numa nova aba com tudo preenchido — é só conferir e salvar.')),
+      actions: [
+        { label: 'Cancelar' },
+        {
+          label: 'Abrir no Google Agenda', class: 'primary', icon: 'externalLink', onClick: () => {
+            const st = ZF.fromLocalInput(when.value);
+            if (!st) { ui.toast('Informe a data e hora', 'error'); return false; }
+            ZF.openGcal({ title: title.value.trim() || 'Compromisso', details: details.value, location: loc.value, start: st, end: st + Number(dur.value) * 60000 });
+            store.saveSettings({ eventMinutes: Number(dur.value) });
+          },
+        },
+      ],
+    });
   };
 
   /** Escolher uma resposta rápida salva (para agendamentos e campanhas) */

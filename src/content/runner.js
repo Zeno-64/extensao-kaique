@@ -68,6 +68,7 @@
       else if (repeat === 'weekdays') {
         do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6);
       } else if (repeat === 'weekly') d.setDate(d.getDate() + 7);
+      else if (repeat === 'yearly') d.setFullYear(d.getFullYear() + 1);
       else if (repeat === 'monthly') {
         const day = anchorDay || d.getDate();
         d.setDate(1);
@@ -148,8 +149,8 @@
     : finishCampaignContact(job.refId, job.index, result));
 
   /* ---------------- execução ---------------- */
-  async function deliver(job, prevChat) {
-    const settings = await store.settings();
+  /** Depois de recarregar pelo link (só se permitido), envia os blocos restantes na conversa aberta */
+  async function sendAfterReload(job) {
     await saveCurrent({ job, phase: 'sending', startedAt: Date.now() });
     let result;
     try {
@@ -160,11 +161,6 @@
     }
     await saveCurrent(null);
     await finishJob(job, result);
-    if (settings.restoreChat && prevChat && prevChat.ok && prevChat.chatId) {
-      const now = await wa.bridge('getActiveChat', {}, 2000);
-      if (!now || now.chatId !== prevChat.chatId) await wa.bridge('openChat', { chatId: prevChat.chatId }, 8000);
-    }
-    return result;
   }
 
   async function runJob(job) {
@@ -173,21 +169,43 @@
     const settings = await store.settings();
     job.rendered = ZF.renderBlocks(job.blocks, job.vars, false);
 
-    const prevChat = settings.restoreChat ? await wa.bridge('getActiveChat', {}, 2000) : null;
-    let opened = { ok: false };
-    if (settings.fastOpen) opened = await wa.openChatFast({ phone: job.target.phone, chatId: job.target.chatId });
-
-    if (!opened.ok) {
-      if (!job.target.phone) return finishJob(job, { ok: false, error: 'Não foi possível abrir a conversa' });
-      // Modo seguro: abre pelo link oficial (recarrega o WhatsApp Web)
-      await saveCurrent({ job, phase: 'nav', startedAt: Date.now() });
-      runner.navigating = true;
-      setState('sending', `Abrindo conversa com ${label}…`);
-      wa.openChatByLink(job.target.phone);
-      return;
+    await saveCurrent({ job, phase: 'sending', startedAt: Date.now() });
+    let res;
+    try {
+      // envia sem recarregar: direto (sem trocar de conversa) ou abrindo a conversa na interface
+      res = await wa.deliver(job.target, job.rendered, settings);
+    } catch (e) {
+      res = { ok: false, error: e.message || String(e) };
     }
-    await ZF.sleep(ZF.rand(600, 1200));
-    await deliver(job, prevChat);
+
+    if (res.needReload) {
+      if (settings.allowReload && job.target.phone) {
+        job.rendered = res.remaining;
+        await saveCurrent({ job, phase: 'nav', startedAt: Date.now() });
+        runner.navigating = true;
+        setState('sending', `Abrindo conversa com ${label}…`);
+        wa.openChatByLink(job.target.phone);
+        return;
+      }
+      res = { ok: false, error: `${res.error}. Veja Configurações → Diagnóstico.` };
+    }
+    await saveCurrent(null);
+    await finishJob(job, res);
+
+    if (res.usedUi && settings.restoreChat && res.prevChat && res.prevChat.ok && res.prevChat.chatId) {
+      const now = await wa.bridge('getActiveChat', {}, 2000);
+      if (!now || now.chatId !== res.prevChat.chatId) await wa.bridge('openChat', { chatId: res.prevChat.chatId }, 8000);
+    }
+  }
+
+  // Com envio direto disponível, envios automáticos não mexem na tela — não precisa esperar o usuário parar de digitar
+  let directCache = { at: 0, ok: false };
+  async function directAvailable() {
+    if (Date.now() - directCache.at < 5 * 60000) return directCache.ok;
+    const s = await store.settings();
+    const p = s.directSend === false ? null : await wa.bridge('ping', {}, 3000);
+    directCache = { at: Date.now(), ok: !!(p && p.ok && p.modules.sendText && p.modules.chats) };
+    return directCache.ok;
   }
 
   /** Retoma um envio que estava em andamento antes de a página recarregar */
@@ -210,7 +228,7 @@
         return true;
       }
       await ZF.sleep(ZF.rand(1200, 2000));
-      await deliver(cur.job, null);
+      await sendAfterReload(cur.job);
       return true;
     }
     if (cur.phase === 'sending') {
@@ -231,7 +249,7 @@
         await finishSchedule(s.id, { ok: false, missed: true, error: 'Horário perdido (WhatsApp Web estava fechado)' });
         return true;
       }
-      if (userIsBusy(s.sendAt)) {
+      if (userIsBusy(s.sendAt) && !(await directAvailable())) {
         setState('waiting', 'Agendamento pronto — aguardando você parar de digitar…');
         scheduleWake(Date.now() + 6000);
         return false;
@@ -272,18 +290,18 @@
       scheduleWake(c.nextAt);
       return false;
     }
-    if (userIsBusy(c.nextAt || now)) {
+    if (userIsBusy(c.nextAt || now) && !(await directAvailable())) {
       setState('waiting', 'Envio em massa aguardando você parar de digitar…', { campaignId: c.id });
       scheduleWake(Date.now() + 6000);
       return false;
     }
     const contact = c.contacts[idx];
     const vars = { ...ZF.builtinVars(contact), ...(contact.vars || {}) };
-    await runJob({
-      kind: 'campaign', refId: c.id, index: idx,
-      target: { type: 'phone', phone: contact.phone, name: contact.name },
-      blocks: c.blocks, vars,
-    });
+    // contatos vindos de grupos/etiquetas podem ter só o id da conversa (ex.: grupos)
+    const target = contact.chatId
+      ? { type: 'chat', chatId: contact.chatId, phone: contact.phone || null, name: contact.name }
+      : { type: 'phone', phone: contact.phone, name: contact.name };
+    await runJob({ kind: 'campaign', refId: c.id, index: idx, target, blocks: c.blocks, vars });
     return true;
   }
 

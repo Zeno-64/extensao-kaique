@@ -1,0 +1,236 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>WA mock</title>
+<style>
+  body{margin:0;font-family:Segoe UI,sans-serif}
+  #app{position:fixed;inset:0;display:flex;background:#efeae2}
+  #side{width:260px;background:#fff;border-right:1px solid #ddd}
+  #side h3{margin:0;padding:14px;background:#f0f2f5}
+  #main{flex:1;display:flex;flex-direction:column;min-width:0}
+  #main header{padding:12px 16px;background:#f0f2f5;font-weight:600}
+  .msgs{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:6px}
+  .msg{padding:6px 10px;border-radius:8px;max-width:70%;white-space:pre-wrap;font-size:14px}
+  .message-out{background:#d9fdd3;align-self:flex-end}.message-in{background:#fff;align-self:flex-start}
+  footer{display:flex;gap:8px;padding:10px;background:#f0f2f5;align-items:center}
+  footer [contenteditable]{flex:1;background:#fff;min-height:22px;padding:9px 12px;border-radius:8px;outline:0;white-space:pre-wrap}
+  #media{position:absolute;inset:0;background:#e9edef;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+  #media [contenteditable]{background:#fff;width:60%;padding:8px;border-radius:8px;min-height:20px}
+  .popup{position:fixed;top:40%;left:30%;background:#fff;padding:20px;box-shadow:0 4px 20px #0004;border-radius:8px}
+</style></head>
+<body>
+<div id="app">
+  <div id="side"><h3>Conversas</h3><div id="pane-side"><div style="padding:12px">Maria Silva</div><div style="padding:12px">Grupo Teste</div></div></div>
+  <div id="main" style="position:relative">
+    <header><span dir="auto" title="Maria Silva">Maria Silva</span></header>
+    <div class="msgs"></div>
+    <footer>
+      <button data-icon="plus-rounded" aria-label="Anexar">＋</button>
+      <div contenteditable="true" role="textbox" aria-label="Digite uma mensagem"></div>
+      <button aria-label="Enviar"><span data-icon="send">➤</span></button>
+    </footer>
+    <div id="media"><div id="mname"></div><div contenteditable="true" aria-label="Adicionar legenda"></div>
+      <div role="button" aria-label="Enviar"><span data-icon="wds-ic-send-filled">ENVIAR MÍDIA ➤</span></div></div>
+  </div>
+</div>
+<script>
+/* Parâmetros: ?nomods=1 (sem módulos internos)  ?nolink=1 (WhatsApp não trata link wa.me) */
+const P = new URLSearchParams(location.search);
+window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1' };
+
+/* ---------- mock chrome.* (persistido em localStorage) ---------- */
+(() => {
+  const KEY = 'zf-mock-store';
+  const load = () => JSON.parse(localStorage.getItem(KEY) || '{}');
+  const save = (o) => localStorage.setItem(KEY, JSON.stringify(o));
+  const listeners = [];
+  const msgListeners = [];
+  const fire = (changes) => setTimeout(() => listeners.forEach((fn) => fn(changes, 'local')), 0);
+  window.bgLog = [];
+  window.aiLog = [];
+  window.chrome = {
+    storage: {
+      local: {
+        get: async (keys) => { const all = load(); if (keys == null) return all; const out = {}; [].concat(keys).forEach((k) => { if (k in all) out[k] = all[k]; }); return out; },
+        set: async (obj) => { const all = load(); const ch = {}; for (const k in obj) { ch[k] = { oldValue: all[k], newValue: obj[k] }; all[k] = JSON.parse(JSON.stringify(obj[k])); } save(all); fire(ch); },
+        remove: async (keys) => { const all = load(); const ch = {}; [].concat(keys).forEach((k) => { ch[k] = { oldValue: all[k] }; delete all[k]; }); save(all); fire(ch); },
+        clear: async () => { save({}); },
+      },
+      onChanged: { addListener: (fn) => listeners.push(fn), removeListener: (fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); } },
+    },
+    runtime: {
+      getURL: (p) => '/ext/' + p,
+      getManifest: () => ({ version: '1.1.0-harness' }),
+      sendMessage: async (msg) => {
+        if (msg.type === 'ZF_SLEEP') { await new Promise((r) => setTimeout(r, msg.ms)); return true; }
+        if (msg.type === 'ZF_AI_HAS_KEY') { const k = load().aiKey; return { ok: true, hasKey: !!k, hint: k ? k.slice(0, 10) + '…' : '' }; }
+        if (msg.type === 'ZF_AI_KEY') { const all = load(); if (msg.key) all.aiKey = msg.key; else delete all.aiKey; save(all); return { ok: true }; }
+        if (msg.type === 'ZF_KEEPALIVE') return true;
+        if (msg.type === 'ZF_AI') {
+          aiLog.push(msg);
+          await new Promise((r) => setTimeout(r, 300));
+          const p = msg.messages[0].content;
+          const text = p.includes('<mensagem>') ? 'Olá! Tudo bem? Sua consulta está confirmada para amanhã às [horário]. 😊' : p.includes('Resuma') ? '• Quer remarcar\n• Pendente: novo horário' : 'Oi, Maria! Posso te ajudar a remarcar. Qual horário fica melhor?';
+          return { ok: true, text, model: 'claude-opus-5' };
+        }
+        bgLog.push(msg); return true;
+      },
+      onMessage: { addListener: (fn) => msgListeners.push(fn) },
+    },
+  };
+  window.sendToContent = (msg) => msgListeners.forEach((fn) => fn(msg, {}, () => {}));
+  if (!localStorage.getItem(KEY)) save({
+    categories: [
+      { id: 'c1', name: '☎️ Confirmações de consulta', color: 'gray', order: 1 },
+      { id: 'c2', name: '💼 Dia a Dia', color: 'peach', order: 2 },
+    ],
+    replies: [
+      { id: 'r1', title: 'CC - Amanhã', categoryId: 'c1', order: 1, uses: 3, blocks: [{ type: 'text', text: '{saudacao}, {primeiro_nome}! Confirmando amanhã às *{horario}*.' }] },
+      { id: 'r3', title: 'Check-in OK', categoryId: 'c2', order: 1, uses: 0, blocks: [{ type: 'text', text: 'Check-in recebido ✅ Obrigado, {primeiro_nome}!' }] },
+    ],
+  });
+})();
+
+/* ---------- mock do WhatsApp ---------- */
+(() => {
+  const box = document.querySelector('footer [contenteditable]');
+  const msgsEl = document.querySelector('.msgs');
+  const media = document.getElementById('media');
+  let pendingFile = null;
+  window.sent = JSON.parse(sessionStorage.getItem('sent') || '[]');
+  const title = () => document.querySelector('#main header span').textContent;
+  const record = (chatName, text, via) => {
+    sent.push({ chat: chatName, text, via });
+    sessionStorage.setItem('sent', JSON.stringify(sent));
+  };
+  const addMsg = (text, via, out = true) => {
+    if (out) record(title(), text, via);
+    const m = document.createElement('div');
+    m.className = 'msg ' + (out ? 'message-out' : 'message-in');
+    const s = document.createElement('span'); s.className = 'selectable-text'; s.textContent = text;
+    m.appendChild(s);
+    if (out) { const sm = document.createElement('small'); sm.innerHTML = ' <span data-icon="msg-time">🕓</span>'; m.appendChild(sm); setTimeout(() => { sm.innerHTML = ' <span data-icon="msg-check">✓</span>'; }, 400); }
+    msgsEl.appendChild(m);
+  };
+  window.addIncoming = (t) => addMsg(t, 'in', false);
+  box.addEventListener('paste', (e) => {
+    const dt = e.clipboardData;
+    if (dt.files && dt.files.length) { e.preventDefault(); openMedia(dt.files[0]); return; }
+    const t = dt.getData('text/plain');
+    if (t) { e.preventDefault(); document.execCommand('insertText', false, t); }
+  });
+  const openMedia = (file) => { pendingFile = file; document.getElementById('mname').textContent = 'Arquivo: ' + file.name; media.style.display = 'flex'; };
+  document.querySelector('footer [aria-label="Enviar"]').addEventListener('click', () => {
+    const t = box.innerText.replace(/\n$/, '');
+    if (!t.trim()) return;
+    addMsg(t, 'ui');
+    box.innerHTML = '';
+  });
+  media.querySelector('[role=button]').addEventListener('click', () => {
+    const cap = media.querySelector('[contenteditable]').innerText.trim();
+    addMsg('📎 ' + pendingFile.name + (cap ? ' — ' + cap : ''), 'ui');
+    media.querySelector('[contenteditable]').innerHTML = '';
+    media.style.display = 'none';
+  });
+
+  /* ----- módulos internos (formato do WhatsApp Web set/2026) ----- */
+  const col = (arr) => ({ getModelsArray: () => arr, get models() { return arr; } });
+  const chats = {};
+  let active = null;
+  const setHeader = (t) => { const s = document.querySelector('#main header span'); s.textContent = t; s.title = t; };
+  const mkChat = (id, name, extra = {}) => {
+    if (chats[id]) return chats[id];
+    const [user, server] = id.split('@');
+    const chat = { id: { _serialized: id, user, server, toString: () => id }, formattedTitle: name, contact: { name, pushname: name, phoneNumber: server === 'c.us' ? { user } : null }, labels: [], unreadCount: 0, t: Date.now() / 1000, msgs: col([]), ...extra };
+    chats[id] = chat;
+    return chat;
+  };
+  active = mkChat('5511911111111@c.us', 'Maria Silva', { labels: ['1'], msgs: col([
+    { id: { fromMe: false }, type: 'chat', body: 'Oi! Preciso remarcar minha consulta de amanhã.', t: 1 },
+    { id: { fromMe: true }, type: 'chat', body: 'Claro! Vou verificar os horários.', t: 2 },
+    { id: { fromMe: false }, type: 'image', body: 'BASE64...', caption: 'meu exame', t: 3 },
+  ]) });
+  mkChat('120363@g.us', 'Grupo Teste', { labels: ['2'] });
+  mkChat('5511922222222@c.us', 'Pedro Alves', { labels: ['1'], unreadCount: 2 });
+  mkChat('999888@lid', 'Contato LID', {});
+  chats['999888@lid'].contact.phoneNumber = { user: '5511933333333' };
+  const participants = [{ id: { _serialized: '5511911111111@c.us', user: '5511911111111', server: 'c.us' }, isAdmin: true }, { id: { _serialized: '777@lid', user: '777', server: 'lid' }, isAdmin: false }];
+  const groupMeta = { '120363@g.us': { participants: col(participants) } };
+  const contacts = [
+    { id: { _serialized: '5511911111111@c.us', user: '5511911111111', server: 'c.us' }, name: 'Maria Silva', pushname: 'Mari', isMyContact: true },
+    { id: { _serialized: '5511922222222@c.us', user: '5511922222222', server: 'c.us' }, name: '', pushname: 'Pedrão', isMyContact: false },
+    { id: { _serialized: '777@lid', user: '777', server: 'lid' }, name: 'Lucas Lid', pushname: 'Lucas', isMyContact: true },
+    { id: { _serialized: '5511900000001@c.us', user: '5511900000001', server: 'c.us' }, name: 'Eu', isMe: true },
+  ];
+  const lidToPn = { '777': '5511977777777' };
+  const openUI = (chat) => { active = chat; setHeader(chat.formattedTitle); };
+  const modules = {
+    WAWebChatCollection: { ChatCollection: {
+      get: (id) => chats[typeof id === 'string' ? id : id._serialized],
+      getActive: () => active,
+      getLatestChatForWid: (wid) => chats[wid._serialized],
+      getModelsArray: () => Object.values(chats),
+    } },
+    WAWebCmd: { Cmd: { openChatBottom: async ({ chat }) => { if (!chat || !chat.id) throw new Error('bad'); openUI(chat); } } },
+    WAWebWidFactory: { createWid: (s) => { const [user, server] = s.split('@'); return { _serialized: s, user, server, toString: () => s }; } },
+    WAWebFindChatAction: { findOrCreateLatestChat: async (wid) => ({ chat: mkChat(wid._serialized, '+' + wid.user) }) },
+    WAWebQueryExistsJob: { queryWidExists: async (wid) => (wid.user.endsWith('0000') ? null : { wid }) },
+    WAWebSendTextMsgChatAction: { sendTextMsgToChat: async (chat, text) => { record(chat.formattedTitle, text, 'direct'); return [Promise.resolve({}), Promise.resolve({ messageSendResult: 'OK' })]; } },
+    WAWebMediaOpaqueData: { default: { createFromData: async (blob, type) => ({ blob, type }) } },
+    WAWebPrepRawMedia: { prepRawMedia: (od, opts) => ({
+      waitForPrep: async () => ({ mediaStage: 'RESOLVED' }),
+      sendToChat: async ({ chat, options }) => { record(chat.formattedTitle, `📎 ${od.blob.name}${options.caption ? ' — ' + options.caption : ''}${opts.isPtt ? ' [voz]' : opts.asDocument ? ' [doc]' : ''}`, 'direct'); return [Promise.resolve({}), Promise.resolve('OK')]; },
+    }) },
+    WAWebComposeBoxActions: { ComposeBoxActions: {
+      paste: (chat, text) => { box.focus(); document.execCommand('insertText', false, text); },
+      setTextContent: (chat, text) => { box.textContent = text; },
+      pasteFiles: (chat, files) => openMedia(files[0]),
+      focus: () => box.focus(),
+    } },
+    WAWebContactCollection: { ContactCollection: { getModelsArray: () => contacts, get: (id) => contacts.find((c) => c.id._serialized === (id._serialized || id)) } },
+    WAWebLabelCollection: { LabelCollection: { getModelsArray: () => [{ id: 1, name: 'Novo cliente', hexColor: '#ff9900' }, { id: 2, name: 'Grupos VIP', hexColor: '#00aa55' }] } },
+    WAWebGroupMetadataCollection: { default: { get: (id) => groupMeta[id._serialized || id] } },
+    WAWebLidMigrationUtils: { toPn: (wid) => (lidToPn[wid.user] ? { user: lidToPn[wid.user] } : null) },
+  };
+  if (!MOCK.noMods) {
+    window.require = (name) => {
+      if (name === '__debug') return { modulesMap: Object.fromEntries(Object.keys(modules).map((k) => [k, {}])) };
+      if (modules[name]) return modules[name].default || modules[name];
+      throw new Error('unknown module ' + name);
+    };
+    window.importNamespace = (name) => modules[name] || null;
+  }
+
+  // O WhatsApp trata cliques em links wa.me abrindo a conversa (sem recarregar)
+  document.addEventListener('click', (e) => {
+    if (MOCK.noLink) return;
+    const a = e.target.closest && e.target.closest('a[href^="https://wa.me/"]');
+    if (!a) return;
+    e.preventDefault();
+    const phone = a.href.split('/').pop();
+    setTimeout(() => openUI(mkChat(phone + '@c.us', '+' + phone)), 300);
+  });
+
+  // simula a abertura via /send?phone= após "recarregar"
+  const nav = P.get('nav');
+  if (nav) {
+    const phone = new URL(nav).searchParams.get('phone');
+    history.replaceState(null, '', '/' + (MOCK.noMods ? '?nomods=1' : ''));
+    setTimeout(() => openUI(mkChat(phone + '@c.us', '+' + phone)), 1200);
+  }
+})();
+</script>
+<script src="/ext/src/bridge.js"></script>
+<script src="/ext/src/content/util.js"></script>
+<script src="/ext/src/content/store.js"></script>
+<script src="/ext/src/content/whatsapp.js"></script>
+<script>ZF.wa.openChatByLink = (phone) => { location.href = '/?' + (MOCK.noMods ? 'nomods=1&' : '') + 'nav=' + encodeURIComponent('https://web.whatsapp.com/send?phone=' + phone); };</script>
+<script src="/ext/src/content/runner.js"></script>
+<script src="/ext/src/content/ui.js"></script>
+<script src="/ext/src/content/tab-crm.js"></script>
+<script src="/ext/src/content/tab-replies.js"></script>
+<script src="/ext/src/content/tab-schedules.js"></script>
+<script src="/ext/src/content/tab-reminders.js"></script>
+<script src="/ext/src/content/tab-bulk.js"></script>
+<script src="/ext/src/content/tab-ai.js"></script>
+<script src="/ext/src/content/tab-settings.js"></script>
+<script src="/ext/src/content/main.js"></script>
+</body></html>

@@ -311,26 +311,139 @@
     if (!box) throw new Error('Abra uma conversa primeiro');
     const texts = blocks.filter((b) => b.type === 'text' && b.text.trim()).map((b) => b.text);
     const files = blocks.filter((b) => b.type === 'file');
-    if (texts.length) await insertText(box, texts.join('\n\n'));
+    if (texts.length) {
+      const text = texts.join('\n\n');
+      const before = contentSnapshot(box);
+      // 1) pela ação interna do WhatsApp; 2) simulando colar/digitar
+      const r = await bridge('composeInsert', { text }, 3000);
+      const ok = r && r.ok && (await waitFor(() => contentSnapshot(box) !== before, 1500, 100));
+      if (!ok) await insertText(box, text);
+    }
     if (files.length && !texts.length) {
       const rec = await ZF.store.getFile(files[0].fileId);
       if (rec) {
-        placeCaretAtEnd(box);
-        const dt = new DataTransfer();
-        dt.items.add(ZF.dataURLtoFile(rec.data, rec.name, rec.mime));
-        box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+        const file = ZF.dataURLtoFile(rec.data, rec.name, rec.mime);
+        const r = await bridge('composeFiles', { files: [file] }, 3000);
+        const ok = r && r.ok && (await waitFor(mediaSendButton, 2500, 150));
+        if (!ok) {
+          placeCaretAtEnd(box);
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+        }
       }
     }
     return { skippedFiles: texts.length ? files.length : Math.max(0, files.length - 1) };
   }
 
-  /* ---------------- abrir conversas ---------------- */
-  /** Tenta abrir sem recarregar. Retorna {ok} ou {ok:false, reason}. */
-  async function openChatFast({ phone, chatId }) {
-    const r = await bridge('openChat', { phone, chatId }, 20000);
-    if (!r || !r.ok) return r || { ok: false };
-    const box = await waitFor(getCompose, 8000);
-    return box ? r : { ok: false, reason: 'no_compose' };
+  /* ---------------- abrir conversas (sem recarregar) ---------------- */
+  /**
+   * Tenta abrir a conversa pelo link interno wa.me. Se o WhatsApp não tratar o
+   * clique, a navegação é cancelada — a página nunca recarrega aqui.
+   */
+  async function openChatViaLink(phone) {
+    const before = headerTitle();
+    const a = document.createElement('a');
+    a.href = `https://wa.me/${phone}`;
+    a.style.display = 'none';
+    let handled = false;
+    const guard = (e) => {
+      if (!e.composedPath().includes(a)) return;
+      if (e.defaultPrevented) handled = true;
+      else e.preventDefault();
+    };
+    window.addEventListener('click', guard);
+    (document.querySelector('#app') || document.body).appendChild(a);
+    try { a.click(); } finally { window.removeEventListener('click', guard); a.remove(); }
+    if (!handled) return { ok: false };
+    const res = await waitFor(() => {
+      const pop = qsa(SEL.popup).find((p) => visible(p) && /inv[aá]lid|invalid|n[aã]o est[aá] no whatsapp|isn.t on whatsapp/i.test(p.textContent || ''));
+      if (pop) return 'invalid';
+      return getCompose() && headerTitle() !== before ? 'ok' : null;
+    }, 15000, 250);
+    if (res === 'invalid') {
+      const pop = qsa(SEL.popup).find(visible);
+      const btn = pop && [...pop.querySelectorAll('button, [role="button"]')].pop();
+      if (btn) realClick(btn);
+      return { ok: false, invalid: true };
+    }
+    return { ok: res === 'ok' };
+  }
+
+  /** Abre a conversa na interface. Retorna {ok} | {ok:false, invalid} | {ok:false, reason} */
+  async function openChatUI({ phone, chatId }) {
+    const r = await bridge('openChat', { phone, chatId }, 25000);
+    if (r && r.ok && (await waitFor(getCompose, 8000))) return { ok: true };
+    if (r && r.reason === 'not_found') return { ok: false, invalid: true };
+    if (phone) {
+      const l = await openChatViaLink(phone);
+      if (l.ok || l.invalid) return l;
+    }
+    return { ok: false, reason: (r && r.reason) || 'open_failed' };
+  }
+
+  /* ---------------- envio a qualquer destino ---------------- */
+  // Motivos em que ainda é seguro tentar pela interface (nada foi enviado)
+  const RETRYABLE = ['unavailable', 'no_chat', 'find_failed', 'error', 'media_error', 'no_target'];
+
+  async function sendDirect(target, b) {
+    const args = { phone: target.phone || undefined, chatId: target.chatId || undefined };
+    if (b.type === 'text') return (await bridge('sendText', { ...args, text: b.text }, 60000)) || { ok: false };
+    const rec = await ZF.store.getFile(b.fileId);
+    if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
+    const file = ZF.dataURLtoFile(rec.data, rec.name, rec.mime);
+    const mime = rec.mime || '';
+    const mode = mime.startsWith('audio/') ? (b.asVoice ? 'ptt' : 'audio') : /^(image|video)\//.test(mime) ? 'auto' : 'document';
+    let r = await bridge('sendMedia', { ...args, file, caption: b.caption, mode }, 180000);
+    if (r && !r.ok && mode === 'ptt' && RETRYABLE.includes(r.reason)) {
+      r = await bridge('sendMedia', { ...args, file, caption: b.caption, mode: 'audio' }, 180000);
+    }
+    return r || { ok: false };
+  }
+
+  async function sendBlockUI(b) {
+    if (b.type === 'text') return sendText(b.text);
+    const rec = await ZF.store.getFile(b.fileId);
+    if (!rec) throw new Error(`Arquivo "${b.name}" não encontrado`);
+    return sendFile(rec, b.caption);
+  }
+
+  /**
+   * Envia blocos (já renderizados) para um destino {phone, chatId}, sem recarregar a página:
+   * 1) direto pelas funções internas do WhatsApp — não troca a conversa aberta;
+   * 2) se não der, abre a conversa na interface e envia como um humano.
+   * Retorna {ok, usedUi, prevChat} | {ok:false, invalid} | {ok:false, needReload, remaining}.
+   */
+  async function deliver(target, blocks, settings = {}, { isOpen = false } = {}) {
+    const list = blocks.filter((b) => (b.type === 'text' ? b.text && b.text.trim() : b.fileId));
+    if (!list.length) throw new Error('Mensagem vazia');
+    // isOpen: o destino já é a conversa aberta — o caminho pela interface não precisa abrir nada
+    let ui = isOpen ? { prevChat: null } : null;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      let sent = false;
+      if (settings.directSend !== false) {
+        const r = await sendDirect(target, b);
+        if (r.ok) sent = true;
+        else if (r.reason === 'not_found') return { ok: false, invalid: true, error: 'Número não tem WhatsApp' };
+        else if (!RETRYABLE.includes(r.reason)) throw new Error(r.error || `Falha no envio (${r.reason || 'desconhecida'})`);
+      }
+      if (!sent) {
+        if (!ui) {
+          const prevChat = await bridge('getActiveChat', {}, 2000);
+          const o = await openChatUI(target);
+          if (!o.ok) {
+            if (o.invalid) return { ok: false, invalid: true, error: 'Número não tem WhatsApp' };
+            return { ok: false, needReload: true, remaining: list.slice(i), error: 'Não foi possível abrir a conversa sem recarregar a página' };
+          }
+          ui = { prevChat };
+          await sleep(ZF.rand(500, 900));
+        }
+        await sendBlockUI(b);
+      }
+      if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
+    }
+    return { ok: true, usedUi: !!(ui && ui.prevChat), prevChat: ui ? ui.prevChat : null };
   }
 
   /** Após abrir via link /send?phone=, espera a conversa ou o aviso de número inválido */
@@ -360,15 +473,27 @@
     };
   }
 
-  /** Modo seguro: abre a conversa pelo link oficial (recarrega o WhatsApp Web) */
+  /** Último recurso (só se permitido nas Configurações): abre pelo link oficial e recarrega o WhatsApp Web */
   const openChatByLink = (phone) => {
     location.href = `https://web.whatsapp.com/send?phone=${encodeURIComponent(phone)}`;
   };
 
+  /** Chamada à ponte que exige resposta ok; lança erro amigável se o recurso não existir */
+  async function call(action, args, timeout) {
+    const r = await bridge(action, args, timeout);
+    if (!r || !r.ok) {
+      const why = r && r.reason;
+      if (why === 'unavailable' || why === 'timeout') throw new Error('Recurso indisponível nesta versão do WhatsApp Web (veja Configurações → Diagnóstico).');
+      throw new Error(r && r.error ? r.error : `Não foi possível concluir (${why || 'erro'})`);
+    }
+    return r;
+  }
+
   ZF.wa = {
-    SEL, qs, qsa, waitFor, visible, bridge,
+    SEL, qs, qsa, waitFor, visible, bridge, call,
     isReady, getCompose, headerTitle, activeChatInfo,
     insertText, sendText, sendFile, sendBlocks, insertBlocks,
-    openChatFast, openChatByLink, waitChatAfterNavigation, waitPendingClear, diagnostics,
+    openChatUI, openChatViaLink, openChatByLink, deliver,
+    waitChatAfterNavigation, waitPendingClear, diagnostics,
   };
 })();
