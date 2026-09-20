@@ -57,6 +57,7 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
       onChanged: { addListener: (fn) => listeners.push(fn), removeListener: (fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); } },
     },
     runtime: {
+      id: 'zapflow-harness', // ZF.extAlive() usa isto para saber se a extensão ainda responde
       getURL: (p) => '/ext/' + p,
       getManifest: () => ({ version: '1.2.0-harness' }),
       sendMessage: async (msg) => {

@@ -186,7 +186,7 @@
     const r = paneRect();
     Object.assign(overlayEl.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   }
-  setInterval(positionOverlay, 800);
+  ZF.every(800, positionOverlay);
   window.addEventListener('resize', () => setTimeout(positionOverlay, 50));
 
   const initials = (name) => (String(name || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '#');
@@ -400,19 +400,19 @@
       if (tb.selected) renderOverlay(true);
       if (tb.kanbanOpen) renderKanban();
     });
-    setInterval(() => {
+    ZF.every(8000, () => {
       applyVisibility();
       // só consulta o WhatsApp quando algo visível depende das contagens
       const visible = settings().topBar !== false || tb.selected || tb.kanbanOpen;
       if (!document.hidden && visible) refresh();
-    }, 8000);
-    const boot = setInterval(() => {
+    });
+    const boot = ZF.every(1000, () => {
       applyVisibility();
       if (!ZF.wa.isReady()) return;
       clearInterval(boot);
       applyVisibility();
       refresh();
-    }, 1000);
+    });
   }
 
   ZF.topbar = {

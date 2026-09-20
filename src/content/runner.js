@@ -313,8 +313,9 @@
       if (!runner.navigating && ZF.backup) await ZF.backup.autoTick();
       if (!runner.navigating && (runner.state.at < stamp || runner.state.phase === 'sending')) setState('idle', '');
     } catch (e) {
+      // extensao recarregada: nao e erro, so desliga os lacos desta pagina
+      if (ZF.isContextGone(e)) { ZF.shutdown(); return; }
       console.error('[ZapFlow] runner', e);
-      if (String(e).includes('Extension context invalidated')) return;
       setState('error', e.message || String(e));
     } finally {
       runner.busy = false;
@@ -336,14 +337,16 @@
   runner.directAvailable = directAvailable;
   runner.userTyping = () => Date.now() - runner.lastUserInput < 6000;
   runner.start = () => {
-    setInterval(tick, 5000);
+    ZF.every(5000, tick);
+    // percebe a atualizacao da extensao antes de dar erro em algum envio
+    ZF.every(4000, () => { if (!ZF.extAlive()) ZF.shutdown(); });
     store.onChange(['schedules', 'campaigns'], () => setTimeout(tick, 400));
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.type === 'ZF_TICK') tick();
     });
-    const boot = setInterval(() => {
+    const boot = ZF.every(1000, () => {
       if (wa.isReady()) { clearInterval(boot); tick(); }
-    }, 1000);
+    });
   };
 
   ZF.runner = runner;

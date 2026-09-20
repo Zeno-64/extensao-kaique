@@ -203,6 +203,7 @@
       if (ZF.ui && ZF.ui.toast) ZF.ui.toast('Backup automático enviado para o seu WhatsApp', 'ok', 5000);
     } catch (e) {
       const error = e.message || String(e);
+      if (ZF.isContextGone(e)) { ZF.shutdown(); return; }
       console.warn('[ZapFlow] backup automático', e);
       await saveState({ lastAttemptAt: Date.now(), lastError: error, failNotified: true });
       if (!st.failNotified) ZF.runner.notify('Backup automático não enviado', `${error}. Nova tentativa em 1 hora.`);

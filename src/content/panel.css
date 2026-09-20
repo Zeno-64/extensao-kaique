@@ -264,6 +264,16 @@ svg { flex-shrink: 0; }
 .zf-preview .zf-file { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 4px 0; }
 .zf-preview .zf-sep { border-top: 1px solid var(--border); margin: 6px 0; }
 
+/* a extensão foi recarregada e este script ficou para trás */
+.zf-stale {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 120; pointer-events: auto;
+  display: flex; align-items: center; gap: 10px; max-width: min(560px, calc(100vw - 32px));
+  padding: 9px 9px 9px 14px; border-radius: 12px; font-size: 13.5px; font-weight: 600;
+  background: var(--bg); color: var(--text); border: 1px solid var(--accent); box-shadow: var(--shadow);
+  animation: zf-in .2s ease;
+}
+.zf-stale > svg { color: var(--accent); }
+
 /* barra "de quem são estes agendamentos" */
 .zf-scope {
   display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding: 5px 5px 5px 10px;

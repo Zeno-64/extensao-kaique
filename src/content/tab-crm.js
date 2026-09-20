@@ -50,7 +50,7 @@
       }
     } catch (e) { /* ignora */ } finally { checking = false; }
   }
-  setInterval(checkChat, 1200);
+  ZF.every(1200, checkChat);
   ZF.activeChat = active;
   ZF.checkActiveChat = checkChat;
 

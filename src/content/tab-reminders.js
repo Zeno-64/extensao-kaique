@@ -151,7 +151,7 @@
       showAlert(r);
     });
   }
-  setInterval(checkDue, 15000);
+  ZF.every(15000, checkDue);
   store.get('reminders').then((list) => { reminders = list; setTimeout(checkDue, 3000); });
 
   /** Pedido do service worker (clique na notificação) */

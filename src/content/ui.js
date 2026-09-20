@@ -52,12 +52,24 @@
     if (/Extension context invalidated|context invalidated/i.test(msg)) return 'A extensão foi atualizada. Recarregue a página do WhatsApp (F5).';
     return msg;
   };
+  /** A extensao foi recarregada: este painel e o fantasma da versao antiga */
+  ui.staleBanner = () => {
+    if (ui.staleEl || !ui.wrap) return;
+    ui.staleEl = h('div', { class: 'zf-stale zf-keep' },
+      icon('refresh', 17),
+      h('span', { class: 'zf-grow' }, 'O ZapFlow foi atualizado. Recarregue a página do WhatsApp para voltar a usar.'),
+      h('button', { class: 'zf-btn sm primary', onclick: () => location.reload() }, 'Recarregar'),
+      h('button', { class: 'zf-iconbtn', title: 'Fechar aviso', onclick: () => ui.staleEl.remove() }, icon('x', 16)));
+    ui.wrap.appendChild(ui.staleEl);
+  };
+
   /** Envolve handlers de eventos: mostra erros como toast */
   ui.safe = (fn) => async (...args) => {
     try {
       return await fn(...args);
     } catch (e) {
-      console.error('[ZapFlow]', e);
+      if (ZF.isContextGone(e)) ZF.shutdown();
+      else console.error('[ZapFlow]', e);
       ui.toast(ui.errorMessage(e), 'error', 5000);
     }
   };
@@ -155,10 +167,10 @@
     });
     store.onChange(['schedules', 'campaigns', 'reminders'], () => ui.updateBadges());
     ui.updateBadges();
-    setInterval(ui.updateBadges, 30000);
+    ZF.every(30000, ui.updateBadges);
 
     ZF.on('runner', (st) => ui.renderStatus(st));
-    setInterval(() => ui.renderStatus(ZF.runner && ZF.runner.state), 1000);
+    ZF.every(1000, () => ui.renderStatus(ZF.runner && ZF.runner.state));
   };
 
   ui.applySettings = (s) => {

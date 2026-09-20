@@ -26,11 +26,31 @@
   ZF.pad = (n) => String(n).padStart(2, '0');
   ZF.clone = (o) => JSON.parse(JSON.stringify(o));
 
+  /* ---------- extensao recarregada: este script fica orfao na pagina ---------- */
+  // Ao atualizar/recarregar a extensao, o chrome.* desta aba morre ("Extension context
+  // invalidated"). Nao e um erro de verdade: a pagina so precisa ser recarregada.
+  const timers = [];
+  ZF.contextGone = false;
+  /** setInterval que a extensao sabe desligar quando o contexto morre */
+  ZF.every = (ms, fn) => { const id = setInterval(fn, ms); timers.push(id); return id; };
+  /** O chrome.* desta pagina ainda responde? */
+  ZF.extAlive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };
+  ZF.isContextGone = (e) => ZF.contextGone || /Extension context invalidated|context invalidated/i.test((e && e.message) || String(e || ''));
+  /** Para os lacos desta pagina e avisa para recarregar (uma vez so) */
+  ZF.shutdown = () => {
+    if (ZF.contextGone) return;
+    ZF.contextGone = true;
+    while (timers.length) clearInterval(timers.pop());
+    try { if (ZF.ui && ZF.ui.staleBanner) ZF.ui.staleBanner(); } catch (e) { /* ignora */ }
+  };
+
   /* ---------- eventos internos ---------- */
   const listeners = {};
   ZF.on = (evt, fn) => ((listeners[evt] = listeners[evt] || []).push(fn), () => ZF.off(evt, fn));
   ZF.off = (evt, fn) => (listeners[evt] = (listeners[evt] || []).filter((f) => f !== fn));
-  ZF.emit = (evt, data) => (listeners[evt] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error('[ZapFlow]', e); } });
+  ZF.emit = (evt, data) => (listeners[evt] || []).forEach((fn) => {
+    try { fn(data); } catch (e) { if (ZF.isContextGone(e)) ZF.shutdown(); else console.error('[ZapFlow]', e); }
+  });
 
   /* ---------- datas ---------- */
   const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];

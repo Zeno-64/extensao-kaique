@@ -16,13 +16,14 @@
 
   const boot = async () => {
     try {
-      await ZF.store.migrate().catch((e) => console.warn('[ZapFlow] migração', e));
+      await ZF.store.migrate().catch((e) => { if (ZF.isContextGone(e)) ZF.shutdown(); else console.warn('[ZapFlow] migração', e); });
       await ZF.ui.mount();
       ZF.topbar.mount();
       ZF.runner.start();
       ZF.store.gcFiles().catch(() => {});
     } catch (e) {
-      console.error('[ZapFlow] falha ao iniciar', e);
+      if (ZF.isContextGone(e)) ZF.shutdown();
+      else console.error('[ZapFlow] falha ao iniciar', e);
     }
   };
   if (document.body) boot();

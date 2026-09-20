@@ -83,6 +83,7 @@ Uma resposta rápida é uma **sequência de ações**, executadas em ordem pelo 
 4. Abra/recarregue o **https://web.whatsapp.com**.
 
 > Depois de atualizar o código, clique em **↻ Recarregar** no card da extensão; a aba do WhatsApp recarrega sozinha.
+> Se a aba não recarregar sozinha, o ZapFlow avisa no topo da tela com um botão **Recarregar**: o script antigo para sozinho (nada de envio pela metade) e volta ao normal depois do F5.
 > Não é preciso rodar `npm` para usar a extensão — o SDK da IA já vem empacotado em `vendor/`.
 > Ao atualizar da v1.1, as respostas rápidas antigas são convertidas automaticamente para o formato de ações, e as "etiquetas próprias" viram **abas do CRM**.
 
