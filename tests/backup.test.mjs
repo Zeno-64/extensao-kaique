@@ -55,6 +55,9 @@ eq('nunca feito: sai logo', B.nextDue('monthly', {}), 0);
 eq('depois de um backup: um mês', fmt(B.nextDue('monthly', { lastOkAt: day(2026, 9, 19), lastAttemptAt: day(2026, 9, 19) })), '19/10/2026 10:00');
 eq('falhou: tenta de novo em 1 h', fmt(B.nextDue('monthly', { lastOkAt: day(2026, 9, 19), lastAttemptAt: day(2026, 10, 19, 10) })), '19/10/2026 11:00');
 eq('nunca deu certo e falhou: 1 h', fmt(B.nextDue('weekly', { lastAttemptAt: day(2026, 9, 19, 8) })), '19/09/2026 09:00');
+eq('2 falhas: ainda de hora em hora', fmt(B.nextDue('weekly', { lastAttemptAt: day(2026, 9, 19, 8), fails: 2 })), '19/09/2026 09:00');
+eq('3 falhas: espera o proximo periodo', fmt(B.nextDue('weekly', { lastAttemptAt: day(2026, 9, 19, 8), fails: 3 })), '26/09/2026 08:00');
+eq('3 falhas no mensal: espera um mes', fmt(B.nextDue('monthly', { lastAttemptAt: day(2026, 9, 19, 8), fails: 5 })), '19/10/2026 08:00');
 
 /* ---------------- resumo ---------------- */
 const sample = {

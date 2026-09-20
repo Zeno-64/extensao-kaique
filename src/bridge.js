@@ -592,9 +592,9 @@
     },
 
     /** Últimas mensagens da conversa (padrão: a aberta) — usado pelo Assistente de IA */
-    async getMessages({ chatId, limit = 30 }) {
+    async getMessages({ chatId, phone, limit = 30 }) {
       let chat = null;
-      if (chatId) { const r = await resolveChat({ chatId }); chat = r.chat; } else chat = getActive();
+      if (chatId || phone) { const r = await resolveChat({ chatId, phone }); chat = r.chat; } else chat = getActive();
       if (!chat) return { ok: false, reason: 'no_chat' };
       const msgs = field('WAWebFrontendChatGetters', 'getMsgs', chat, 'msgs');
       const list = models(msgs).slice(-limit).map((m) => {

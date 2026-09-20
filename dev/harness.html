@@ -111,6 +111,9 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
   const record = (chatName, text, via) => {
     sent.push({ chat: chatName, text, via });
     sessionStorage.setItem('sent', JSON.stringify(sent));
+    // o WhatsApp guarda a mensagem enviada no modelo da conversa (e a extensao le de volta)
+    const c = Object.values(chats).find((x) => x.formattedTitle === chatName);
+    if (c && c.msgs) c.msgs.getModelsArray().push({ id: { fromMe: true }, type: text.indexOf('\u{1F4CE}') === 0 ? 'document' : 'chat', body: text, caption: text, t: Math.floor(Date.now() / 1000) });
   };
   const addMsg = (text, via, out = true) => {
     if (out) record(title(), text, via);

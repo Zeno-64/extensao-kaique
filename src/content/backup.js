@@ -13,6 +13,9 @@
     { value: 'off', label: 'Desligado' },
   ];
   const RETRY_MS = 60 * 60000; // depois de uma falha, tenta de novo em 1 h
+  const MAX_TRIES = 3; // depois de 3 falhas seguidas, espera o próximo período (não insiste de hora em hora)
+  const MIN_GAP_MS = 12 * 60 * 60000; // nunca dois backups automáticos com menos de 12 h de diferença
+  const CAPTION_TAG = 'Backup do ZapFlow'; // marca usada para reconhecer um backup já entregue
   const bootAt = Date.now();
   let running = false;
 
@@ -36,7 +39,11 @@
     if (!freq || freq === 'off') return null;
     let due = st.lastOkAt ? addPeriod(st.lastOkAt, freq) : 0;
     const failed = st.lastAttemptAt && st.lastAttemptAt > (st.lastOkAt || 0);
-    if (failed) due = Math.max(due, st.lastAttemptAt + RETRY_MS);
+    if (failed) {
+      // insiste de hora em hora só nas primeiras tentativas; depois espera o próximo período
+      const tries = Number(st.fails) || 1;
+      due = Math.max(due, tries >= MAX_TRIES ? addPeriod(st.lastAttemptAt, freq) : st.lastAttemptAt + RETRY_MS);
+    }
     return due;
   }
 
@@ -94,11 +101,12 @@
       lines.push({ type: 'info', text: 'Nenhum backup enviado ainda.' });
     }
     const failed = st.lastError && st.lastAttemptAt > (st.lastOkAt || 0);
-    if (failed) lines.push({ type: 'error', text: `A última tentativa falhou (${ZF.fmtDateTime(st.lastAttemptAt)}): ${st.lastError}` });
+    const tries = Number(st.fails) || 1;
+    if (failed) lines.push({ type: 'error', text: `A última tentativa falhou (${ZF.fmtDateTime(st.lastAttemptAt)}${tries > 1 ? `, ${tries} seguidas` : ''}): ${st.lastError}` });
     const due = nextDue(freq, st);
     if (due === null) lines.push({ type: 'warn', text: 'Backup automático desligado.' });
     else if (due <= now) lines.push({ type: 'info', text: 'Próximo backup: em instantes (com o WhatsApp Web aberto).' });
-    else if (failed) lines.push({ type: 'info', text: `Próxima tentativa: ${ZF.fmtDateTime(due)}.` });
+    else if (failed) lines.push({ type: 'info', text: `${tries >= MAX_TRIES ? 'Parei de insistir. Próxima tentativa' : 'Próxima tentativa'}: ${ZF.fmtDateTime(due)}.` });
     else lines.push({ type: 'info', text: `Próximo backup: ${ZF.fmtDate(due)} (ou na primeira vez que o WhatsApp Web for aberto depois disso).` });
     return lines;
   }
@@ -133,18 +141,33 @@
   }
 
   /* ---------------- envio ---------------- */
+  /** Para quem vai o backup: o número de "Enviar para" ou o da própria conta */
+  async function resolveTarget(settings) {
+    const custom = String(settings.backupTo || '').trim();
+    const to = custom ? ZF.normalizePhone(custom, settings.countryCode) : null;
+    if (custom && !to) throw new Error(`O número em "Enviar para" (${custom}) não é válido`);
+    if (to) return { to, toSelf: false };
+    const me = await myPhone();
+    if (!me || !me.phone) throw new Error('Não encontrei o seu número no WhatsApp Web. Preencha "Enviar para" com o seu número.');
+    return { to: me.phone, toSelf: true };
+  }
+
+  /**
+   * Quando o último backup chegou nessa conversa, segundo o próprio WhatsApp.
+   * É o que evita mandar de novo quando o envio deu certo mas a confirmação falhou.
+   * null = não deu para conferir; 0 = nenhum backup por lá.
+   */
+  async function lastSentAt(to) {
+    const r = await ZF.wa.bridge('getMessages', { phone: to, limit: 30 }, 8000);
+    if (!r || !r.ok || !Array.isArray(r.messages)) return null;
+    const hits = r.messages.filter((m) => m.fromMe && new RegExp(CAPTION_TAG, 'i').test(m.text || ''));
+    return hits.length ? Number(hits[hits.length - 1].t) * 1000 : 0;
+  }
+
   /** Gera o backup e envia como documento. Lança erro se não conseguir. */
   async function send({ auto = false } = {}) {
     const settings = await ZF.store.settings();
-    const custom = String(settings.backupTo || '').trim();
-    let to = custom ? ZF.normalizePhone(custom, settings.countryCode) : null;
-    if (custom && !to) throw new Error(`O número em "Enviar para" (${custom}) não é válido`);
-    const toSelf = !to;
-    if (toSelf) {
-      const me = await myPhone();
-      if (!me || !me.phone) throw new Error('Não encontrei o seu número no WhatsApp Web. Preencha "Enviar para" com o seu número.');
-      to = me.phone;
-    }
+    const { to, toSelf } = await resolveTarget(settings);
     const b = await build();
     const caption = [
       `💾 Backup do ZapFlow — ${ZF.fmtDateTime(Date.now())}`,
@@ -169,7 +192,7 @@
       throw new Error(msg);
     }
     const now = Date.now();
-    return saveState({ lastOkAt: now, lastAttemptAt: now, lastError: null, lastAuto: auto, lastTo: to, lastToSelf: toSelf, lastSize: b.file.size, failNotified: false });
+    return saveState({ lastOkAt: now, lastAttemptAt: now, lastError: null, lastAuto: auto, lastTo: to, lastToSelf: toSelf, lastSize: b.file.size, failNotified: false, fails: 0 });
   }
 
   /** Envio manual (botão "Enviar backup agora") */
@@ -180,7 +203,8 @@
       await ZF.runner.exclusive(() => send({ auto: false }));
       ui.toast('Backup enviado para o WhatsApp', 'ok', 3500);
     } catch (e) {
-      await saveState({ lastAttemptAt: Date.now(), lastError: e.message || String(e) });
+      const st = await getState();
+      await saveState({ lastAttemptAt: Date.now(), lastError: e.message || String(e), fails: (Number(st.fails) || 0) + 1 });
       throw e;
     } finally {
       ui.setBusy(null);
@@ -199,14 +223,24 @@
     running = true;
     ZF.runner.setState('sending', 'Enviando o backup automático para o seu WhatsApp…');
     try {
+      // confere no WhatsApp se o backup já chegou: se a confirmação de um envio anterior
+      // falhou (mas a mensagem saiu), isso evita mandar outro a cada tentativa
+      const { to } = await resolveTarget(settings);
+      const already = await lastSentAt(to);
+      if (already && Date.now() - already < MIN_GAP_MS) {
+        await saveState({ lastOkAt: already, lastAttemptAt: Date.now(), lastError: null, lastAuto: true, lastTo: to, failNotified: false, fails: 0 });
+        return true;
+      }
       await send({ auto: true });
       if (ZF.ui && ZF.ui.toast) ZF.ui.toast('Backup automático enviado para o seu WhatsApp', 'ok', 5000);
     } catch (e) {
       const error = e.message || String(e);
       if (ZF.isContextGone(e)) { ZF.shutdown(); return; }
       console.warn('[ZapFlow] backup automático', e);
-      await saveState({ lastAttemptAt: Date.now(), lastError: error, failNotified: true });
-      if (!st.failNotified) ZF.runner.notify('Backup automático não enviado', `${error}. Nova tentativa em 1 hora.`);
+      const fails = (Number(st.fails) || 0) + 1;
+      await saveState({ lastAttemptAt: Date.now(), lastError: error, failNotified: true, fails });
+      const again = fails >= MAX_TRIES ? 'Vou esperar o próximo backup programado.' : 'Nova tentativa em 1 hora.';
+      if (!st.failNotified) ZF.runner.notify('Backup automático não enviado', `${error}. ${again}`);
     } finally {
       running = false;
     }
@@ -452,5 +486,5 @@
 
   ZF.backup = {
     bootDelayMs: 90000, // espera o WhatsApp terminar de carregar as conversas
-    FREQS, addPeriod, nextDue, describe, fileName, statusLines, getState, myPhone, send, sendNow, autoTick, importFlow, exportFlow, autoBox, readBackupFile };
+    FREQS, MAX_TRIES, MIN_GAP_MS, addPeriod, nextDue, describe, fileName, statusLines, getState, myPhone, resolveTarget, lastSentAt, send, sendNow, autoTick, importFlow, exportFlow, autoBox, readBackupFile };
 })();
