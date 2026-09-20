@@ -37,8 +37,7 @@
   /* ---------------- usar uma resposta ---------------- */
   /** Conversa aberta + variáveis (pergunta os campos personalizados). null = cancelado */
   async function prepare(actionsList) {
-    const info = await ZF.wa.activeChatInfo();
-    if (!info) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
+    const info = await ZF.wa.requireChat();
     const vars = ZF.builtinVars({ name: info && info.name, phone: info && info.phone });
     const used = ZF.findVarsInActions(actionsList);
     const ask = used.filter((v) => (!ZF.BUILTIN_VARS.includes(v) && !(v in vars)) || (v === 'nome' && !vars.nome) || (v === 'primeiro_nome' && !vars.primeiro_nome && !used.includes('nome')));

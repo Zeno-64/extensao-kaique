@@ -194,12 +194,20 @@
 
   function buildDiagnostics() {
     const out = h('div', { class: 'zf-diag' }, 'Clique em "Testar integração" com uma conversa aberta.');
+    let report = '';
+    const copy = h('button', {
+      class: 'zf-btn sm', style: { display: 'none' },
+      onclick: ui.safe(async () => { await navigator.clipboard.writeText(report); ui.toast('Relatório copiado', 'ok'); }),
+    }, icon('copy', 14), 'Copiar relatório');
     const run = ui.safe(async () => {
       out.textContent = 'Verificando…';
       const d = await ZF.wa.diagnostics();
       const yes = (v) => (v ? '✅' : '❌');
       const m = d.bridge || {};
+      const s = d.signals || {};
       const direct = m.chats && m.sendText && m.widFactory && m.findChat;
+      report = JSON.stringify({ versao: chrome.runtime.getManifest().version, ...d, ua: navigator.userAgent }, null, 2);
+      copy.style.display = '';
       out.textContent = [
         `${yes(d.appReady)} WhatsApp Web carregado`,
         `${yes(m.chats)} Lista de conversas (módulo interno)`,
@@ -214,9 +222,11 @@
         `${yes(m.presence)} "Digitando…" e "gravando áudio…"`,
         `${yes(m.groups)} Participantes de grupos`,
         `${yes(m.me)} Seu número (backup automático) e nome (assinatura)`,
-        `${yes(d.chatOpen)} Conversa aberta`,
+        `${yes(!!d.activeChat)} Conversa aberta pelo WhatsApp${d.activeChat ? ` (${d.activeChat.name || d.activeChat.chatId})` : ''}`,
+        `${yes(d.chatOpen)} Conversa aberta na tela (painel:${yes(s.painel)} cabeçalho:${yes(s.cabecalho)})`,
         `${yes(d.compose)} Campo de mensagem encontrado (envio pela interface)`,
         `${yes(d.attach)} Botão de anexo encontrado`,
+        `   rodapés visíveis: ${s.rodapes} • campos editáveis: ${s.editaveis}`,
         '',
         direct ? 'Envio direto disponível: agendamentos e disparos não recarregam nem trocam a conversa aberta.'
           : d.compose ? 'Envio direto indisponível: a extensão vai abrir a conversa e enviar pela interface (sem recarregar).'
@@ -226,7 +236,8 @@
     return [
       card(null,
         row({ icon: 'activity', label: 'Testar integração', hint: 'Se algo parar de funcionar depois de uma atualização do WhatsApp, rode o teste e veja o que falhou', control: h('button', { class: 'zf-btn sm primary', onclick: run }, icon('check', 14), 'Testar') }),
-        out),
+        out,
+        h('div', { class: 'zf-row', style: { marginTop: '8px' } }, copy)),
     ];
   }
 

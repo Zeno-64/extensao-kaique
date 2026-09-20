@@ -78,8 +78,7 @@
 
   const actions = {
     async suggest() {
-      const info = await ZF.wa.activeChatInfo();
-      if (!info) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
+      const info = await ZF.wa.requireChat();
       const msgs = await readConversation(30);
       if (!msgs.length) throw ZF.userError('Não encontrei mensagens nesta conversa.');
       await ask({
@@ -88,8 +87,7 @@
       });
     },
     async summarize() {
-      const info = await ZF.wa.activeChatInfo();
-      if (!info) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
+      const info = await ZF.wa.requireChat();
       const msgs = await readConversation(60);
       if (!msgs.length) throw ZF.userError('Não encontrei mensagens nesta conversa.');
       await ask({

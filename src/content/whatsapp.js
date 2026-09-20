@@ -131,12 +131,35 @@
     const footer = chatFooter();
     return qs(SEL.main) || (footer && footer.parentElement) || null;
   };
+  /**
+   * O que a extensão está enxergando da conversa (entra nos avisos e no Diagnóstico).
+   * Serve para saber qual camada falhou quando o WhatsApp muda de layout.
+   */
+  const chatSignals = () => ({
+    painel: qsa(SEL.main).some(visible),
+    cabecalho: qsa(SEL.header).some(visible),
+    campo: !!getCompose(),
+    rodapes: qsa('footer').filter(visible).length,
+    editaveis: qsa('[contenteditable="true"], [contenteditable=""]').filter(visible).length,
+  });
+  const signalsText = () => {
+    const s = chatSignals();
+    return `painel:${s.painel ? 1 : 0} cabeçalho:${s.cabecalho ? 1 : 0} campo:${s.campo ? 1 : 0} rodapés:${s.rodapes} editáveis:${s.editaveis}`;
+  };
+
   /** Campo de mensagem da conversa aberta; o erro diz o que está faltando */
   function requireCompose() {
     const box = getCompose();
     if (box) return box;
-    if (!chatOpen()) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
-    throw ZF.userError('Não achei o campo de mensagem desta conversa. Clique no campo de texto do WhatsApp e tente de novo (em conversas só de leitura não dá para escrever).');
+    if (!chatOpen()) throw ZF.userError(`Abra uma conversa no WhatsApp primeiro. [${signalsText()}]`);
+    throw ZF.userError(`Não achei o campo de mensagem desta conversa. Clique no campo de texto do WhatsApp e tente de novo (em conversas só de leitura não dá para escrever). [${signalsText()}]`);
+  }
+
+  /** Conversa aberta (módulo interno primeiro, DOM depois); erro com a causa se não houver */
+  async function requireChat({ wait = 1200 } = {}) {
+    const info = await activeChatInfo({ wait });
+    if (info) return info;
+    throw ZF.userError(`Abra uma conversa no WhatsApp primeiro. [${signalsText()} ponte:0]`);
   }
 
   function headerTitle() {
@@ -146,12 +169,17 @@
     return t ? (t.getAttribute('title') || t.textContent || '').trim() : '';
   }
 
-  /** Informações da conversa aberta (nome/telefone), com o melhor dado disponível */
-  async function activeChatInfo() {
+  /**
+   * Informações da conversa aberta (nome/telefone), com o melhor dado disponível.
+   * A fonte da verdade é o próprio WhatsApp (módulo interno): ele sabe qual conversa
+   * está aberta mesmo quando o layout muda e os seletores de tela param de achar nada.
+   */
+  async function activeChatInfo({ wait = 0 } = {}) {
+    const r = await bridge('getActiveChat', {}, 3000);
+    if (r && r.ok) return { ...r, name: r.name || r.pushname || headerTitle() };
+    if (!chatOpen() && wait) await waitFor(chatOpen, wait, 150);
     if (!chatOpen()) return null;
     const title = headerTitle();
-    const r = await bridge('getActiveChat', {}, 3000);
-    if (r && r.ok) return { ...r, name: r.name || r.pushname || title };
     const digits = ZF.onlyDigits(title);
     return { ok: true, chatId: null, isGroup: false, phone: /^\+?[\d\s()-]+$/.test(title) && digits.length >= 10 ? digits : null, name: title };
   }
@@ -352,17 +380,19 @@
 
   /** Coloca o texto no campo (sem enviar). Arquivos são apenas anexados na pré-visualização. */
   async function insertBlocks(blocks) {
-    const box = requireCompose();
+    // sem o campo na tela ainda dá para escrever pela ação interna do WhatsApp
+    const box = getCompose();
+    if (!box) await requireChat();
     blocks = ZF.signBlocks(blocks, await signatureName((ZF.ui && ZF.ui.settings) || (await ZF.store.settings())));
     const texts = blocks.filter((b) => (b.type === 'text' && b.text.trim()) || b.type === 'vcard').map((b) => (b.type === 'vcard' ? ZF.vcardText(b) : b.text));
     const files = blocks.filter((b) => b.type === 'file');
     if (texts.length) {
       const text = texts.join('\n\n');
-      const before = contentSnapshot(box);
+      const before = box ? contentSnapshot(box) : '';
       // 1) pela ação interna do WhatsApp; 2) simulando colar/digitar
       const r = await bridge('composeInsert', { text }, 3000);
-      const ok = r && r.ok && (await waitFor(() => contentSnapshot(box) !== before, 1500, 100));
-      if (!ok) await insertText(box, text);
+      const ok = r && r.ok && (!box || (await waitFor(() => contentSnapshot(box) !== before, 1500, 100)));
+      if (!ok) await insertText(requireCompose(), text);
     }
     if (files.length && !texts.length) {
       const rec = await ZF.store.getFile(files[0].fileId);
@@ -371,10 +401,11 @@
         const r = await bridge('composeFiles', { files: [file] }, 3000);
         const ok = r && r.ok && (await waitFor(mediaSendButton, 2500, 150));
         if (!ok) {
-          placeCaretAtEnd(box);
+          const target = requireCompose();
+          placeCaretAtEnd(target);
           const dt = new DataTransfer();
           dt.items.add(file);
-          box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+          target.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
         }
       }
     }
@@ -533,11 +564,14 @@
 
   async function diagnostics() {
     const ping = await bridge('ping', {}, 3000);
+    const active = await bridge('getActiveChat', {}, 3000);
     return {
       appReady: isReady(),
       chatOpen: chatOpen(),
       compose: !!getCompose(),
       attach: !!attachButton(),
+      signals: chatSignals(),
+      activeChat: active && active.ok ? { name: active.name || '', chatId: active.chatId || '', isGroup: !!active.isGroup } : null,
       bridge: ping && ping.ok ? ping.modules : null,
     };
   }
@@ -560,7 +594,7 @@
 
   ZF.wa = {
     SEL, qs, qsa, waitFor, visible, bridge, call,
-    isReady, getCompose, chatOpen, requireCompose, headerTitle, activeChatInfo,
+    isReady, getCompose, chatOpen, chatSignals, requireCompose, requireChat, headerTitle, activeChatInfo,
     insertText, sendText, sendFile, sendBlocks, insertBlocks,
     openChatUI, openChatViaLink, openChatByLink, deliver, signatureName,
     waitChatAfterNavigation, waitPendingClear, diagnostics,
