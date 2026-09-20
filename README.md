@@ -11,14 +11,14 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 - 📁+ cria uma aba. ☰ abre o **quadro de atendimento** (Kanban) e o gerenciamento das abas.
 - Botão direito numa aba: editar, disparo em massa, exportar ou excluir.
 
-**Botão flutuante:** fica só o botão azul redondo. **Clicando nele as opções sobem** a partir dele (clicar de novo, clicar fora ou apertar `Esc` faz elas descerem). Segure e arraste para **qualquer lugar da tela**: ele fica exatamente onde você soltar (a posição é lembrada) e não passa por cima da barra da esquerda, da barra de abas nem do painel aberto. Quando o painel abre, o botão acompanha a borda dele. "Voltar os botões para a posição padrão" fica em Configurações → Funcionalidades do Menu.
+**Botão flutuante:** fica só o botão azul redondo, **no canto de baixo da conversa, logo acima da barra de digitação** (ele acompanha a conversa quando ela muda de tamanho). **Clicando nele as opções sobem** a partir dele (clicar de novo, clicar fora ou apertar `Esc` faz elas descerem). Segure e arraste para **qualquer lugar da tela**: a partir daí ele fica exatamente onde você soltar (a posição é lembrada) e não passa por cima da barra da esquerda, da barra de abas nem do painel aberto. Quando o painel abre, o botão acompanha a borda dele. "Voltar os botões para a posição padrão" fica em Configurações → Funcionalidades do Menu.
 
 | Opção (de cima para baixo) | Faz |
 |---|---|
 | ✨ | Assistente de IA |
 | 📦 | Quadro de atendimento: arraste as conversas entre as abas |
 | 👤 | Contato: abas e etiquetas da conversa aberta |
-| 🗓⏰ | Mensagens agendadas **da conversa aberta** (com "Exibir todos") |
+| 🗓⏰ | Abre a **janela de mensagens agendadas** (fora do painel): tabela com o que está agendado para a conversa aberta — mensagem, cliente, data, hora, recorrência, status — com enviar agora, pausar, editar e excluir. "Exibir todos" passa a listar os agendamentos de todos os contatos, e "Adicionar" cria um novo |
 | 📝 | Notas |
 | ⏰ | Lembretes |
 | ⚡ | Abre ou fecha o painel |
@@ -59,6 +59,7 @@ Uma resposta rápida é uma **sequência de ações**, executadas em ordem pelo 
 | **Utilitários** | Agendar mensagem de retorno, criar lembrete, adicionar nota, evento no Google Agenda, marcar como não lida, arquivar, fixar |
 | **Transferir Atendimento** | Avisa o cliente, manda os dados dele para o WhatsApp do atendente e move para uma aba. "Finalizar atendimento": despedida, sai das abas, marca como lida e arquiva (opcional) |
 
+- Cada categoria é um **cartão colorido** que abre e fecha; dentro dele cada resposta é uma linha com o ícone do tipo e os três botões sempre à mostra.
 - **Clique** no título: coloca o texto no campo para revisar. **➤**: executa tudo. **👁**: mostra as ações. **•••**: editar, duplicar, mover, agendar, usar em disparo, excluir.
 - **#Tags** insere variáveis no campo selecionado.
 - **Scripts**: sequência de respostas rápidas (ex.: boas-vindas → valores → agendamento). Dá para enviar etapa por etapa ou todas, com intervalo entre elas.

@@ -26,9 +26,10 @@
     aiInstructions: '',
     aiLanguage: 'inglês',
     dock: true, // botões flutuantes na lateral do WhatsApp
-    dockSide: 'right', // lado de referência dos botões flutuantes: 'right' | 'left'
-    dockX: 14, // distância até esse lado da área do WhatsApp, em px (muda arrastando)
-    dockBottom: null, // distância da parte de baixo da tela, em px (null = padrão)
+    dockSide: 'left', // lado de referência dos botões flutuantes: 'right' | 'left'
+    dockX: null, // distância até esse lado da área do WhatsApp, em px (null = canto da conversa; muda arrastando)
+    dockBottom: null, // distância da parte de baixo da tela, em px (null = logo acima da barra de digitação)
+    dockPlaced: false, // o usuário já arrastou os botões para algum lugar
     rail: true, // barra fixa à esquerda do WhatsApp (atalhos do ZapFlow)
     hideMonitor: false, // esconde a linha de status dos envios automáticos no painel
     signature: false, // assina as mensagens enviadas pelo ZapFlow com *Nome:*
@@ -249,10 +250,18 @@
 
     /** Converte dados de versões anteriores (respostas com "blocks" → "actions") */
     async migrate() {
-      const { replies } = await chrome.storage.local.get('replies');
-      if (!Array.isArray(replies) || !replies.some((r) => !Array.isArray(r.actions))) return false;
-      await store.update('replies', (list) => list.map(ZF.migrateReply));
-      return true;
+      let changed = false;
+      const { replies, settings } = await chrome.storage.local.get(['replies', 'settings']);
+      if (Array.isArray(replies) && replies.some((r) => !Array.isArray(r.actions))) {
+        await store.update('replies', (list) => list.map(ZF.migrateReply));
+        changed = true;
+      }
+      // v1.7: os botões flutuantes passaram a nascer no canto de baixo da conversa, acima da barra de digitação
+      if (settings && settings.dockPlaced === undefined) {
+        await store.saveSettings({ dockPlaced: false, dockSide: 'left', dockX: null, dockBottom: null });
+        changed = true;
+      }
+      return changed;
     },
 
     /** Escuta alterações: onChange(['replies','categories'], (changes) => ...) */

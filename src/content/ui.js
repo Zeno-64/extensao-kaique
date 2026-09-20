@@ -23,7 +23,7 @@
     { key: 'ai', icon: 'sparkles', title: 'Assistente de IA', view: 'ai' },
     { key: 'kanban', icon: 'box', title: 'Quadro de atendimento (abas do CRM)', run: () => ZF.topbar && ZF.topbar.openKanban() },
     { key: 'crm', icon: 'contactCard', title: 'Contato e abas do CRM', view: 'crm' },
-    { key: 'schedules', icon: 'calendarClock', title: 'Mensagens agendadas da conversa', view: 'schedules' },
+    { key: 'schedules', icon: 'calendarClock', title: 'Mensagens agendadas da conversa', run: () => ZF.openSchedulesWindow() },
     { key: 'notes', icon: 'clipboardEdit', title: 'Notas', view: 'notes' },
     { key: 'reminders', icon: 'alarm', title: 'Lembretes', view: 'reminders' },
     { key: 'panel', icon: 'zap', title: 'Abrir o painel do ZapFlow', run: () => ui.toggle() },
@@ -273,8 +273,8 @@
     });
     // o botão azul só sobe/desce as opções; o painel abre pelo botão "Abrir o painel" (ou pela barra da esquerda)
     const logo = h('button', { class: 'zf-dock-logo', 'aria-label': 'Opções do ZapFlow', onclick: () => ui.toggleDock() },
-      h('span', { class: 'zf-dock-ico' }, icon('logo', 26)),
-      h('span', { class: 'zf-dock-ico zf-dock-ico-x' }, icon('x', 24)),
+      h('span', { class: 'zf-dock-ico' }, icon('logo', 22)),
+      h('span', { class: 'zf-dock-ico zf-dock-ico-x' }, icon('x', 20)),
       h('span', { class: 'zf-tip' }, 'ZapFlow — opções (arraste para mover)'));
     ui.dockLogo = logo;
     ui.dock = h('div', { class: 'zf-dock zf-keep' }, items, logo);
@@ -287,12 +287,35 @@
       if (ui.dockOpen && !e.composedPath().includes(ui.dock)) ui.toggleDock(false);
     }, true);
     window.addEventListener('resize', () => ui.placeDock());
+    // a conversa muda de tamanho sozinha (painel do contato, lista de conversas…): segue o canto
+    let lastCorner = '';
+    ZF.every(700, () => {
+      const c = chatCorner();
+      const sig = c ? `${Math.round(c.left)}|${Math.round(c.right)}|${Math.round(c.bottom)}` : 'none';
+      if (sig === lastCorner) return;
+      lastCorner = sig;
+      ui.placeDock();
+    });
   };
 
   /** Altura da barra de abas do topo (0 quando ela está escondida) */
   const barH = () => {
     const b = ui.wrap && ui.wrap.querySelector('.zf-topbar');
     return b && b.style.display !== 'none' ? b.offsetHeight : 0;
+  };
+
+  /**
+   * Canto de baixo da conversa aberta (logo acima da barra de digitação).
+   * É a posição padrão dos botões flutuantes — a mesma de um lado e do outro.
+   */
+  const chatCorner = () => {
+    const main = document.querySelector('#main');
+    const r = main && main.getBoundingClientRect();
+    if (!r || r.width < 200 || r.height < 200) return null;
+    const foot = main.querySelector('footer');
+    const fr = foot && foot.getBoundingClientRect();
+    const overFooter = fr && fr.height > 20 && fr.top > r.top;
+    return { left: r.left, right: r.right, bottom: window.innerHeight - (overFooter ? fr.top : r.bottom) };
   };
 
   /** Área do WhatsApp (sem a barra da esquerda, sem a barra do topo e sem o painel): referência da posição dos botões */
@@ -312,9 +335,16 @@
     // janela minimizada tem tamanho ~0: não limita (recalcula no próximo "resize")
     const sized = window.innerHeight > 200 && window.innerWidth > 300;
     const a = waArea();
+    // enquanto o usuário não arrastar, os botões ficam grudados no canto de baixo da conversa
+    const corner = s.dockPlaced ? null : chatCorner();
     let x = Number.isFinite(Number(s.dockX)) && s.dockX != null ? Number(s.dockX) : DOCK_GAP;
+    if (corner) x = DOCK_GAP + Math.max(0, Math.round(s.dockSide === 'left' ? corner.left - a.left : a.right - corner.right));
     if (sized) x = Math.min(Math.max(DOCK_GAP, x), Math.max(DOCK_GAP, a.right - a.left - ui.dock.offsetWidth - DOCK_GAP));
     ui.wrap.style.setProperty('--dock-x', Math.round(x) + 'px');
+    if (corner) {
+      ui.dock.style.bottom = Math.max(DOCK_GAP, Math.round(corner.bottom + DOCK_GAP)) + 'px';
+      return;
+    }
     const b = Number(s.dockBottom);
     if (s.dockBottom == null || !Number.isFinite(b)) { ui.dock.style.bottom = ''; return; }
     // com as opções abertas a lista cresce para cima: não deixa passar da barra do topo
@@ -370,9 +400,9 @@
       const bottom = Math.max(DOCK_GAP, Math.round(window.innerHeight - r.bottom));
       dock.classList.remove('dragging');
       ['left', 'top', 'right'].forEach((k) => (dock.style[k] = ''));
-      ui.settings = { ...(ui.settings || {}), dockSide: side, dockX: x, dockBottom: bottom };
+      ui.settings = { ...(ui.settings || {}), dockSide: side, dockX: x, dockBottom: bottom, dockPlaced: true };
       ui.placeDock();
-      store.saveSettings({ dockSide: side, dockX: x, dockBottom: bottom });
+      store.saveSettings({ dockSide: side, dockX: x, dockBottom: bottom, dockPlaced: true });
     };
     dock.addEventListener('pointerup', end);
     dock.addEventListener('pointercancel', end);

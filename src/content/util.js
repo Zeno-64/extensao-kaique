@@ -50,6 +50,9 @@
     try { if (ZF.ui && ZF.ui.staleBanner) ZF.ui.staleBanner(); } catch (e) { /* ignora */ }
   };
 
+  /* Quem precisa saber da conversa aberta mesmo com o painel fechado (ex.: a janela de agendamentos) */
+  ZF.activeChatWatchers = new Set();
+
   /* ---------- eventos internos ---------- */
   const listeners = {};
   ZF.on = (evt, fn) => ((listeners[evt] = listeners[evt] || []).push(fn), () => ZF.off(evt, fn));

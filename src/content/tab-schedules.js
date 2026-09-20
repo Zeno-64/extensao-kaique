@@ -20,8 +20,12 @@
   store.onChange(['schedules'], async () => {
     schedules = await store.get('schedules');
     ui.rerender('schedules');
+    renderWindow();
   });
-  ZF.on('activechat', () => { if (ui.current === 'schedules') ui.rerender('schedules'); });
+  ZF.on('activechat', () => {
+    if (ui.current === 'schedules') ui.rerender('schedules');
+    renderWindow();
+  });
 
   const targetLabel = (t) => t.name || ZF.fmtPhone(t.phone) || 'Conversa';
   const activeInfo = () => (ZF.activeChat && ZF.activeChat.info) || null;
@@ -33,7 +37,7 @@
   };
 
   /* ---------------- editor ---------------- */
-  async function openScheduleEditor(sched = null, defaults = {}) {
+  async function openScheduleEditor(sched = null, defaults = {}, opts = {}) {
     const settings = await store.settings();
     let target = sched ? { ...sched.target } : { type: 'phone', phone: '', name: '', chatId: null };
 
@@ -128,6 +132,7 @@
     ui.modal({
       title: sched ? 'Editar agendamento' : 'Novo agendamento',
       body,
+      global: !!opts.global,
       actions: [
         { label: 'Cancelar' },
         {
@@ -169,6 +174,7 @@
             else await store.update('schedules', (list) => { list.push({ id: ZF.uid(), createdAt: Date.now(), history: [], ...rec }); return list; });
             store.gcFiles();
             ui.toast(`Agendado para ${ZF.fmtDateTime(sendAt)}`, 'ok');
+            if (opts.noJump) return;
             if (ui.current !== 'schedules') ui.setTab('schedules');
           },
         },
@@ -261,6 +267,113 @@
     ZF.append(body, h('div', { class: 'zf-note info', style: { marginTop: '12px' } }, icon('alert', 15),
       h('span', {}, 'Os envios acontecem com o Chrome aberto. Se o WhatsApp Web estiver fechado, a extensão abre uma aba automaticamente na hora marcada.')));
   }
+
+
+  /* ---------------- janela própria (botão "Mensagens agendadas" do menu) ---------------- */
+  /*
+   * Abre fora do painel, mostrando primeiro só o que está agendado para a conversa aberta
+   * no WhatsApp; o botão "Exibir todos" passa a listar os agendamentos de todos os contatos.
+   */
+  let winApi = null, winBody = null;
+  let winAll = false;
+
+  const blockIcon = (blocks = []) => {
+    const b = blocks.find((x) => x.type !== 'text') || blocks[0];
+    if (!b || b.type === 'text') return 'fileText';
+    if (b.type === 'vcard') return 'contactCard';
+    const m = String(b.mime || '');
+    if (m.startsWith('image/')) return 'image';
+    if (m.startsWith('video/')) return 'film';
+    if (m.startsWith('audio/')) return 'music';
+    return 'file';
+  };
+
+  /** Próximos primeiro (do mais perto para o mais longe); depois o histórico, do mais recente */
+  const sortForWindow = (list) => {
+    const upcoming = (s) => ['pending', 'paused'].includes(s.status);
+    return list.slice().sort((a, b) => {
+      if (upcoming(a) !== upcoming(b)) return upcoming(a) ? -1 : 1;
+      return upcoming(a) ? a.sendAt - b.sendAt : (b.lastRunAt || b.sendAt) - (a.lastRunAt || a.sendAt);
+    });
+  };
+
+  function windowRow(s) {
+    const upcoming = ['pending', 'paused'].includes(s.status);
+    const ts = upcoming ? s.sendAt : s.sentAt || s.lastRunAt || s.sendAt;
+    const act = (title, ic, fn, cls = '') => h('button', { class: 'zf-iconbtn ' + cls, title, onclick: ui.safe(() => fn()) }, icon(ic, 15));
+    return h('tr', { class: upcoming ? '' : 'past' },
+      h('td', {},
+        h('div', { class: 'zf-tcell' },
+          icon(blockIcon(s.blocks), 14, 'zf-tico'),
+          h('span', { class: 'zf-ellipsis', title: ZF.blocksPreview(s.blocks, 400) }, ZF.blocksPreview(s.blocks, 60) || '—'))),
+      h('td', {}, h('div', { class: 'zf-tcell' },
+        icon(s.target.chatId && !s.target.phone ? 'users' : 'user', 14, 'zf-tico'),
+        h('span', { class: 'zf-ellipsis' }, targetLabel(s.target)))),
+      h('td', { class: 'nowrap' }, ZF.fmtDate(ts)),
+      h('td', { class: 'nowrap' }, ZF.fmtTime(ts)),
+      h('td', { class: 'nowrap' }, ZF.repeatLabel(s) || 'Não repetir'),
+      h('td', {}, ui.badge(s.status, STATUS[s.status] || s.status)),
+      h('td', { class: 'acts' }, h('div', { class: 'zf-tacts' },
+        act(s.status === 'failed' || s.status === 'missed' ? 'Tentar de novo' : 'Enviar agora', 'send', () => sendNow(s), 'accent'),
+        upcoming ? act(s.status === 'paused' ? 'Retomar' : 'Pausar', s.status === 'paused' ? 'play' : 'pause', () => togglePause(s)) : null,
+        act('Editar', 'edit', () => openScheduleEditor(s, {}, { global: true, noJump: true })),
+        act('Excluir', 'trash', () => remove(s), 'danger'))));
+  }
+
+  function renderWindow() {
+    if (!winBody) return;
+    const info = activeInfo();
+    const scoped = !!info && !winAll;
+    const list = sortForWindow(scoped ? schedules.filter((s) => sameTarget(s.target, info)) : schedules);
+    const others = schedules.length - list.length;
+    const head = ['Mensagem', 'Cliente', 'Data', 'Hora', 'Recorrência', 'Status', 'Ações'];
+
+    winBody.replaceChildren();
+    ZF.append(winBody,
+      h('div', { class: 'zf-scope' },
+        icon(scoped ? (info.isGroup ? 'users' : 'user') : 'inbox', 15),
+        h('span', { class: 'zf-grow zf-ellipsis' },
+          scoped ? `Agendamentos de ${targetLabel(info)}` : 'Agendamentos de todos os contatos'),
+        info ? h('button', {
+          class: 'zf-btn sm', title: scoped ? 'Mostrar os agendamentos de todos os contatos' : 'Mostrar só os da conversa aberta',
+          onclick: () => { winAll = !winAll; renderWindow(); },
+        }, icon('eye', 13), scoped ? `Exibir todos${others ? ` (${others})` : ''}` : 'Só desta conversa') : null),
+      list.length
+        ? h('div', { class: 'zf-tablewrap' }, h('table', { class: 'zf-table' },
+          h('thead', {}, h('tr', {}, head.map((t) => h('th', { class: t === 'Ações' ? 'acts' : '' }, t)))),
+          h('tbody', {}, list.slice(0, 200).map(windowRow))))
+        : h('div', { class: 'zf-empty' }, scoped
+          ? 'Nada agendado para esta conversa.'
+          : info ? 'Nenhuma mensagem agendada.' : 'Abra uma conversa no WhatsApp para ver os agendamentos dela.'),
+      list.length > 200 ? h('div', { class: 'zf-hint' }, `Mostrando 200 de ${list.length}.`) : null);
+  }
+
+  /** Janela de agendamentos, fora do painel (botão do menu flutuante) */
+  function openSchedulesWindow() {
+    if (winApi) { renderWindow(); return; }
+    winAll = false;
+    winBody = h('div');
+    renderWindow();
+    winApi = ui.modal({
+      title: 'Mensagens agendadas',
+      body: winBody,
+      global: true,
+      wide: true,
+      onClose: () => { winApi = null; winBody = null; ZF.activeChatWatchers.delete('schedwin'); },
+      actions: [
+        { label: 'Fechar' },
+        {
+          label: 'Adicionar', class: 'primary', icon: 'plus', close: false,
+          onClick: () => openScheduleEditor(null, { useActiveChat: !winAll && !!activeInfo() }, { global: true, noJump: true }),
+        },
+      ],
+    });
+    // com o painel fechado ninguém acompanha a conversa aberta: enquanto a janela existir, acompanha
+    ZF.activeChatWatchers.add('schedwin');
+    if (ZF.checkActiveChat) Promise.resolve(ZF.checkActiveChat(true)).then(renderWindow).catch(() => {});
+    store.get('schedules').then((l) => { schedules = l; renderWindow(); });
+  }
+  ZF.openSchedulesWindow = openSchedulesWindow;
 
   ui.registerTab('schedules', { icon: 'calendarClock', title: 'Mensagens agendadas', render });
 })();

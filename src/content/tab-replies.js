@@ -491,8 +491,8 @@
         await useReply(r, ui.settings.clickAction === 'send' ? 'send' : 'insert', row);
       }),
     },
-    // texto simples não ganha ícone: numa lista grande, um ícone igual em toda linha vira poluição
-    h('span', { class: 'zf-type' }, ZF.replyType(r) === 'texto' ? null : icon(typeIcon(r), 15)),
+    // no visual do WaSpeed toda linha tem o ícone do tipo à esquerda
+    h('span', { class: 'zf-type' }, icon(typeIcon(r), 15)),
     h('span', { class: 'zf-title' }, r.title),
     showCat && r.categoryId && catById(r.categoryId)
       ? h('span', { class: 'zf-catlabel', 'data-color': catById(r.categoryId).color || 'gray' }, h('span', { class: 'zf-ellipsis' }, catById(r.categoryId).name))
@@ -515,7 +515,7 @@
     const toggle = () => cat && store.updateItem('categories', cat.id, (c) => { c.collapsed = !c.collapsed; });
     return h('div', { class: 'zf-cat' + (collapsed ? ' collapsed' : ''), 'data-color': cat ? cat.color || 'gray' : 'none' },
       h('div', { class: 'zf-cat-h', onclick: toggle },
-        h('span', { class: 'zf-cat-dot' }),
+        icon('shapes', 16, 'zf-cat-ico'),
         h('span', { class: 'zf-cat-name' }, cat ? cat.name : 'Sem categoria'),
         h('span', { class: 'zf-count' }, replies.length),
         cat ? h('button', {
@@ -563,7 +563,7 @@
     }
     const flat = state.q || ['type', 'uncat', 'top'].includes(state.filter);
     if (flat) {
-      listEl.appendChild(h('div', { style: { display: 'flex', flexDirection: 'column', gap: '1px', paddingTop: '4px' } },
+      listEl.appendChild(h('div', { class: 'zf-flatlist' },
         items.map((r) => replyRow(r, { showCat: true, showUses: state.filter === 'top' }))));
       return;
     }
