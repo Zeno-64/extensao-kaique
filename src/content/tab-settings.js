@@ -149,9 +149,9 @@
     return [
       card('Barra lateral',
         row({ icon: 'panelLeft', label: 'Barra fixa à esquerda do WhatsApp', hint: 'Atalhos do ZapFlow ao lado da barra de ícones do WhatsApp', control: sw('rail') })),
-      card('Botões flutuantes',
-        row({ icon: 'move', label: 'Mostrar os botões flutuantes', hint: 'Segure e arraste para colocar onde quiser na tela', control: sw('dock') }),
-        row({ icon: 'refresh', label: 'Voltar os botões para a posição padrão', onClick: () => save({ dockSide: 'right', dockX: 14, dockBottom: null }) })),
+      card('Botão flutuante',
+        row({ icon: 'move', label: 'Mostrar o botão flutuante', hint: 'Clique nele para as opções subirem; segure e arraste para colocar onde quiser na tela', control: sw('dock') }),
+        row({ icon: 'refresh', label: 'Voltar o botão para a posição padrão', onClick: () => save({ dockSide: 'right', dockX: 14, dockBottom: null }) })),
       card('Barra de abas no topo',
         row({ icon: 'folderArrow', label: 'Mostrar a barra de abas', control: sw('topBar') }),
         row({

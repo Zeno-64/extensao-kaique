@@ -18,7 +18,7 @@
     ui.order.push(name);
   };
 
-  // Botões flutuantes na lateral do WhatsApp (de cima para baixo)
+  // Botões flutuantes na lateral do WhatsApp (de cima para baixo; o último fica colado no botão azul)
   const DOCK = [
     { key: 'ai', icon: 'sparkles', title: 'Assistente de IA', view: 'ai' },
     { key: 'kanban', icon: 'box', title: 'Quadro de atendimento (abas do CRM)', run: () => ZF.topbar && ZF.topbar.openKanban() },
@@ -27,7 +27,10 @@
     { key: 'gcal', icon: 'calendarDays', title: 'Evento no Google Agenda', run: () => ui.eventForActiveChat() },
     { key: 'notes', icon: 'clipboardEdit', title: 'Notas', view: 'notes' },
     { key: 'reminders', icon: 'alarm', title: 'Lembretes', view: 'reminders' },
+    { key: 'panel', icon: 'zap', title: 'Abrir o painel do ZapFlow', run: () => ui.toggle() },
   ];
+  // Folga entre os botões flutuantes e as bordas da área do WhatsApp
+  const DOCK_GAP = 8;
 
   // Barra fixa à esquerda do WhatsApp (atalhos gerais, como no WaSpeed)
   const RAIL = [
@@ -138,7 +141,7 @@
     document.addEventListener('mousedown', (e) => {
       if (ui.menuEl && !e.composedPath().includes(host)) ui.closeMenu();
     }, true);
-    root.addEventListener('keydown', (e) => { if (e.key === 'Escape') ui.closeMenu(); });
+    root.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ui.closeMenu(); ui.toggleDock(false); } });
 
     const settings = await store.settings();
     ui.settings = settings;
@@ -233,12 +236,20 @@
 
   /* ---------------- barra lateral flutuante ---------------- */
   ui.dockBtns = {};
+  /** Mostra/esconde as opções, que sobem a partir do botão azul */
+  ui.toggleDock = (open = !ui.dockOpen) => {
+    if (!ui.dock) return;
+    ui.dockOpen = !!open;
+    ui.dock.classList.toggle('open', ui.dockOpen);
+    ui.placeDock();
+  };
   ui.buildDock = () => {
     const items = h('div', { class: 'zf-dock-items' });
     DOCK.forEach((d) => {
       const b = h('button', {
         class: 'zf-dock-btn', 'aria-label': d.title,
         onclick: ui.safe(async () => {
+          ui.toggleDock(false);
           if (d.view) {
             if (ui.open && ui.current === d.view) ui.toggle(false);
             else ui.openView(d.view);
@@ -248,28 +259,35 @@
       ui.dockBtns[d.key] = b;
       items.appendChild(b);
     });
-    const logo = h('button', { class: 'zf-dock-logo', 'aria-label': 'Abrir/fechar ZapFlow', onclick: () => ui.toggle() },
-      icon('logo', 26), h('span', { class: 'zf-tip' }, 'ZapFlow — abrir/fechar (arraste para mover)'));
-    const mini = h('button', {
-      class: 'zf-dock-mini', title: 'Recolher/mostrar os botões (arraste para mover)',
-      onclick: () => {
-        ui.dock.classList.toggle('collapsed');
-        try { localStorage.setItem('zapflow-dock-collapsed', ui.dock.classList.contains('collapsed') ? '1' : ''); } catch (e) { /* ignora */ }
-        ui.placeDock();
-      },
-    }, icon('chevronDown', 14));
-    ui.dock = h('div', { class: 'zf-dock zf-keep' }, mini, items, logo);
-    try { if (localStorage.getItem('zapflow-dock-collapsed')) ui.dock.classList.add('collapsed'); } catch (e) { /* ignora */ }
+    // o botão azul só sobe/desce as opções; o painel abre pelo botão "Abrir o painel" (ou pela barra da esquerda)
+    const logo = h('button', { class: 'zf-dock-logo', 'aria-label': 'Opções do ZapFlow', onclick: () => ui.toggleDock() },
+      h('span', { class: 'zf-dock-ico' }, icon('logo', 26)),
+      h('span', { class: 'zf-dock-ico zf-dock-ico-x' }, icon('x', 24)),
+      h('span', { class: 'zf-tip' }, 'ZapFlow — opções (arraste para mover)'));
+    ui.dockLogo = logo;
+    ui.dock = h('div', { class: 'zf-dock zf-keep' }, items, logo);
+    ui.dockOpen = false;
+    try { localStorage.removeItem('zapflow-dock-collapsed'); } catch (e) { /* ignora */ }
     ui.wrap.appendChild(ui.dock);
     enableDockDrag(ui.dock);
+    // clicar em qualquer outro lugar (no WhatsApp ou no painel) desce as opções
+    document.addEventListener('mousedown', (e) => {
+      if (ui.dockOpen && !e.composedPath().includes(ui.dock)) ui.toggleDock(false);
+    }, true);
     window.addEventListener('resize', () => ui.placeDock());
   };
 
-  /** Área do WhatsApp (sem a barra da esquerda e sem o painel): referência da posição dos botões */
+  /** Altura da barra de abas do topo (0 quando ela está escondida) */
+  const barH = () => {
+    const b = ui.wrap && ui.wrap.querySelector('.zf-topbar');
+    return b && b.style.display !== 'none' ? b.offsetHeight : 0;
+  };
+
+  /** Área do WhatsApp (sem a barra da esquerda, sem a barra do topo e sem o painel): referência da posição dos botões */
   const waArea = () => {
     const left = ui.railShown ? RAIL_W : 0;
     const w = Math.max(380, Math.min(600, Number((ui.settings || {}).panelWidth) || 380));
-    return { left, right: window.innerWidth - (ui.open ? w : 0) };
+    return { left, right: window.innerWidth - (ui.open ? w : 0), top: barH() };
   };
 
   /**
@@ -282,13 +300,14 @@
     // janela minimizada tem tamanho ~0: não limita (recalcula no próximo "resize")
     const sized = window.innerHeight > 200 && window.innerWidth > 300;
     const a = waArea();
-    let x = Number.isFinite(Number(s.dockX)) && s.dockX != null ? Number(s.dockX) : 14;
-    if (sized) x = Math.min(Math.max(0, x), Math.max(0, a.right - a.left - ui.dock.offsetWidth - 4));
+    let x = Number.isFinite(Number(s.dockX)) && s.dockX != null ? Number(s.dockX) : DOCK_GAP;
+    if (sized) x = Math.min(Math.max(DOCK_GAP, x), Math.max(DOCK_GAP, a.right - a.left - ui.dock.offsetWidth - DOCK_GAP));
     ui.wrap.style.setProperty('--dock-x', Math.round(x) + 'px');
     const b = Number(s.dockBottom);
     if (s.dockBottom == null || !Number.isFinite(b)) { ui.dock.style.bottom = ''; return; }
-    const max = sized ? Math.max(8, window.innerHeight - ui.dock.offsetHeight - 8) : Infinity;
-    ui.dock.style.bottom = Math.round(Math.min(Math.max(8, b), max)) + 'px';
+    // com as opções abertas a lista cresce para cima: não deixa passar da barra do topo
+    const max = sized ? Math.max(DOCK_GAP, window.innerHeight - ui.dock.offsetHeight - a.top - DOCK_GAP) : Infinity;
+    ui.dock.style.bottom = Math.round(Math.min(Math.max(DOCK_GAP, b), max)) + 'px';
   };
 
   /**
@@ -317,8 +336,11 @@
         ui.closeMenu();
       }
       const r = start.rect;
-      dock.style.left = clamp(r.left + dx, 4, window.innerWidth - r.width - 4) + 'px';
-      dock.style.top = clamp(r.top + dy, 4, window.innerHeight - r.height - 4) + 'px';
+      const a = waArea();
+      // segura os botões dentro da área do WhatsApp (sem passar por cima da barra da esquerda,
+      // da barra do topo nem do painel aberto) — é onde eles vão ficar quando soltar
+      dock.style.left = clamp(r.left + dx, a.left + DOCK_GAP, a.right - r.width - DOCK_GAP) + 'px';
+      dock.style.top = clamp(r.top + dy, a.top + DOCK_GAP, window.innerHeight - r.height - DOCK_GAP) + 'px';
       dock.style.right = 'auto';
       dock.style.bottom = 'auto';
     });
@@ -332,8 +354,8 @@
       const r = dock.getBoundingClientRect();
       const a = waArea();
       const side = r.left + r.width / 2 < (a.left + a.right) / 2 ? 'left' : 'right';
-      const x = Math.max(0, Math.round(side === 'left' ? r.left - a.left : a.right - r.right));
-      const bottom = Math.max(8, Math.round(window.innerHeight - r.bottom));
+      const x = Math.max(DOCK_GAP, Math.round(side === 'left' ? r.left - a.left : a.right - r.right));
+      const bottom = Math.max(DOCK_GAP, Math.round(window.innerHeight - r.bottom));
       dock.classList.remove('dragging');
       ['left', 'top', 'right'].forEach((k) => (dock.style[k] = ''));
       ui.settings = { ...(ui.settings || {}), dockSide: side, dockX: x, dockBottom: bottom };
@@ -438,6 +460,8 @@
     setBadge(ui.railBtns.bulk, running);
     setBadge(ui.dockBtns.reminders, due);
     setBadge(ui.railBtns.reminders, due);
+    // com as opções escondidas, o aviso aparece no próprio botão azul
+    setBadge(ui.dockLogo, failed + due);
   });
 
   /* ---------------- barra de status ---------------- */

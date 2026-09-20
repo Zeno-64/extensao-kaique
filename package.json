@@ -2,7 +2,7 @@
   "name": "zapflow-extension",
   "private": true,
   "type": "module",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Ferramentas de desenvolvimento da extensão ZapFlow (a extensão em si não precisa de build).",
   "scripts": {
     "build:vendor": "esbuild scripts/vendor-anthropic.mjs --bundle --format=esm --platform=browser --target=chrome111 --minify --legal-comments=eof --outfile=vendor/anthropic-sdk.mjs",

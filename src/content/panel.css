@@ -346,14 +346,13 @@ svg { flex-shrink: 0; }
 /* ---------- botões flutuantes (dock) ---------- */
 .zf-dock {
   position: fixed; right: var(--dock-x, 14px); bottom: 86px; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  z-index: 30; pointer-events: auto; transition: right .15s ease;
+  z-index: 30; pointer-events: auto; transition: right .15s ease, left .15s ease, bottom .15s ease;
 }
 .zf.zf-open .zf-dock { right: calc(var(--w) + var(--dock-x, 14px)); }
 .zf-dock-items { display: flex; flex-direction: column; gap: 8px; }
-.zf-dock.collapsed .zf-dock-items { display: none; }
+.zf-dock:not(.open) .zf-dock-items { display: none; }
 .zf-dock.zf-hidden { display: none; }
-.zf-dock.collapsed .zf-dock-mini svg { transform: rotate(180deg); }
-.zf-dock-btn, .zf-dock-logo, .zf-dock-mini { position: relative; border: 0; cursor: pointer; display: grid; place-items: center; }
+.zf-dock-btn, .zf-dock-logo { position: relative; border: 0; cursor: pointer; display: grid; place-items: center; }
 .zf-dock-btn {
   width: 40px; height: 40px; border-radius: 11px; background: #fff; color: var(--accent);
   box-shadow: 0 2px 8px rgba(15, 23, 42, .16), 0 0 0 1px rgba(15, 23, 42, .05);
@@ -367,10 +366,28 @@ svg { flex-shrink: 0; }
   width: 52px; height: 52px; border-radius: 50%; color: #fff;
   background: radial-gradient(circle at 30% 25%, #4f7bff, #2455e6 45%, #172a6e);
   box-shadow: 0 4px 14px rgba(23, 42, 110, .45); margin-top: 4px;
+  transition: box-shadow .15s ease, filter .15s ease;
 }
 .zf-dock-logo:hover { filter: brightness(1.08); }
-.zf-dock-mini { width: 26px; height: 16px; border-radius: 8px; background: rgba(127, 127, 127, .22); color: var(--text); opacity: .6; }
-.zf-dock-mini:hover { opacity: 1; }
+.zf-dock.open .zf-dock-logo { box-shadow: 0 6px 20px rgba(23, 42, 110, .55); }
+
+/* o ícone do botão azul vira um "x" quando as opções estão abertas */
+.zf-dock-ico { grid-area: 1 / 1; display: grid; place-items: center; transition: transform .2s ease, opacity .2s ease; }
+.zf-dock-ico-x { opacity: 0; transform: rotate(-90deg) scale(.5); }
+.zf-dock.open .zf-dock-ico { opacity: 0; transform: rotate(90deg) scale(.5); }
+.zf-dock.open .zf-dock-ico-x { opacity: 1; transform: none; }
+
+/* as opções sobem a partir do botão azul, uma depois da outra */
+@keyframes zf-dock-rise { from { opacity: 0; transform: translateY(18px) scale(.5); } to { opacity: 1; transform: none; } }
+.zf-dock.open .zf-dock-items > .zf-dock-btn { animation: zf-dock-rise .2s cubic-bezier(.2, .9, .3, 1.25) backwards; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(2) { animation-delay: .03s; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(3) { animation-delay: .06s; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(4) { animation-delay: .09s; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(5) { animation-delay: .12s; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(6) { animation-delay: .15s; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(7) { animation-delay: .18s; }
+.zf-dock.open .zf-dock-items > .zf-dock-btn:nth-last-child(n + 8) { animation-delay: .21s; }
+.zf-dock.open .zf-dock-logo .zf-dot { display: none; }
 .zf-dock .zf-dot {
   position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
   background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; border: 2px solid #fff;

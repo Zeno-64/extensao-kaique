@@ -11,9 +11,9 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 - 📁+ cria uma aba. ☰ abre o **quadro de atendimento** (Kanban) e o gerenciamento das abas.
 - Botão direito numa aba: editar, disparo em massa, exportar ou excluir.
 
-**Botões flutuantes** (de cima para baixo). Segure e arraste para **qualquer lugar da tela**: eles ficam exatamente onde você soltar (a posição é lembrada). "Voltar os botões para a posição padrão" fica em Configurações → Funcionalidades do Menu.
+**Botão flutuante:** fica só o botão azul redondo. **Clicando nele as opções sobem** a partir dele (clicar de novo, clicar fora ou apertar `Esc` faz elas descerem). Segure e arraste para **qualquer lugar da tela**: ele fica exatamente onde você soltar (a posição é lembrada) e não passa por cima da barra da esquerda, da barra de abas nem do painel aberto. Quando o painel abre, o botão acompanha a borda dele. "Voltar os botões para a posição padrão" fica em Configurações → Funcionalidades do Menu.
 
-| Botão | Faz |
+| Opção (de cima para baixo) | Faz |
 |---|---|
 | ✨ | Assistente de IA |
 | 📦 | Quadro de atendimento: arraste as conversas entre as abas |
@@ -22,7 +22,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 | 📅 | Evento no Google Agenda para a conversa aberta |
 | 📝 | Notas |
 | ⏰ | Lembretes |
-| Logo | Abre ou fecha o painel |
+| ⚡ | Abre ou fecha o painel |
 
 **Painel** (abas no topo do painel):
 
