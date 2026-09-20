@@ -29,7 +29,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 | Aba | O que faz |
 |---|---|
 | 👤 **Contato** | Coloca ou tira a conversa das abas do CRM e das etiquetas do WhatsApp. Atalhos para agendar, lembrete e Google Agenda. Gerencia as abas (cor, ordem, disparo, exportação) e exporta contatos para Excel |
-| ⚡ **Respostas rápidas** | Categorias, busca e filtros (Tudo, Por Tipo, Sem Categoria, Por Categoria, Mais Usadas). O ⊞ cria **Respostas Rápidas**, **Scripts** e **Categorias** |
+| ⚡ **Respostas rápidas** | Lista por categoria (o título da categoria fica fixo no topo enquanto você rola) com busca e filtros — só aparece o filtro que faz sentido para o que você tem. Clique na linha para usar; passe o mouse nela para ver ••• (opções), 👁 (espiar o conteúdo) e ➤ (executar). O ⊞ cria **Respostas Rápidas**, **Scripts** e **Categorias** |
 | 📝 **Notas** | Notas da conversa aberta e busca em todas as notas |
 | 📥 **Disparos em massa** | Para lista colada, **planilha Excel/CSV**, conversas, **grupos**, **participantes de grupos**, **etiquetas do WhatsApp** e **abas do CRM** |
 | ⚙ | Abre o **Menu Lateral Configurações**: desabilitar o monitor de envios, assinatura nas mensagens, tamanho do painel e "Todas as configurações" |

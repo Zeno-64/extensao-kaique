@@ -467,19 +467,23 @@
         await useReply(r, ui.settings.clickAction === 'send' ? 'send' : 'insert', row);
       }),
     },
-    icon(typeIcon(r), 16, 'zf-type'),
+    // texto simples não ganha ícone: numa lista grande, um ícone igual em toda linha vira poluição
+    h('span', { class: 'zf-type' }, ZF.replyType(r) === 'texto' ? null : icon(typeIcon(r), 15)),
     h('span', { class: 'zf-title' }, r.title),
-    showCat && r.categoryId && catById(r.categoryId) ? h('span', { class: 'zf-catlabel' }, catById(r.categoryId).name) : null,
+    showCat && r.categoryId && catById(r.categoryId)
+      ? h('span', { class: 'zf-catlabel', 'data-color': catById(r.categoryId).color || 'gray' }, h('span', { class: 'zf-ellipsis' }, catById(r.categoryId).name))
+      : null,
     showUses ? h('span', { class: 'zf-uses' }, `${r.uses || 0}×`) : null,
-    h('button', { class: 'zf-iconbtn', title: 'Mais opções', onclick: stop((e) => replyMenu(r, e.currentTarget)) }, icon('more', 18)),
-    h('button', {
-      class: 'zf-iconbtn', title: isScript ? 'Ver etapas' : 'Pré-visualizar',
-      onclick: stop(() => { state.expanded.has(r.id) ? state.expanded.delete(r.id) : state.expanded.add(r.id); renderList(); }),
-    }, icon('eye', 17)),
-    h('button', { class: 'zf-iconbtn accent', title: isScript ? 'Enviar todas as etapas' : 'Executar na conversa aberta', onclick: stop(() => useReply(r, 'send', row)) }, icon('send', 17)));
+    h('div', { class: 'zf-item-acts' },
+      h('button', { class: 'zf-iconbtn', title: 'Mais opções', onclick: stop((e) => replyMenu(r, e.currentTarget)) }, icon('more', 18)),
+      h('button', {
+        class: 'zf-iconbtn', title: isScript ? 'Ver etapas' : 'Pré-visualizar',
+        onclick: stop(() => { state.expanded.has(r.id) ? state.expanded.delete(r.id) : state.expanded.add(r.id); renderList(); }),
+      }, icon('eye', 17)),
+      h('button', { class: 'zf-iconbtn accent', title: isScript ? 'Enviar todas as etapas' : 'Executar na conversa aberta', onclick: stop(() => useReply(r, 'send', row)) }, icon('send', 17))));
 
     if (!state.expanded.has(r.id)) return row;
-    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } }, row, previewOf(r));
+    return h('div', {}, row, previewOf(r));
   }
 
   function categoryBlock(cat, replies, forceOpen = false) {
@@ -487,14 +491,14 @@
     const toggle = () => cat && store.updateItem('categories', cat.id, (c) => { c.collapsed = !c.collapsed; });
     return h('div', { class: 'zf-cat' + (collapsed ? ' collapsed' : ''), 'data-color': cat ? cat.color || 'gray' : 'none' },
       h('div', { class: 'zf-cat-h', onclick: toggle },
-        icon('shapes', 16, 'zf-cat-icon'),
+        h('span', { class: 'zf-cat-dot' }),
         h('span', { class: 'zf-cat-name' }, cat ? cat.name : 'Sem categoria'),
         h('span', { class: 'zf-count' }, replies.length),
         cat ? h('button', {
           class: 'zf-iconbtn zf-cat-more', title: 'Opções da categoria',
           onclick: (e) => { e.stopPropagation(); categoryMenu(cat, e.currentTarget); },
         }, icon('more', 16)) : null,
-        cat ? icon(collapsed ? 'chevronDown' : 'chevronUp', 18) : null),
+        cat ? icon('chevronUp', 16, 'zf-cat-caret') : null),
       h('div', { class: 'zf-cat-body' },
         replies.length ? sortReplies(replies).map((r) => replyRow(r)) : h('div', { class: 'zf-muted zf-small', style: { padding: '4px 2px' } }, 'Nada nesta categoria ainda.')));
   }
@@ -526,7 +530,7 @@
     }
     const flat = state.q || ['type', 'uncat', 'top'].includes(state.filter);
     if (flat) {
-      listEl.appendChild(h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+      listEl.appendChild(h('div', { style: { display: 'flex', flexDirection: 'column', gap: '1px', paddingTop: '4px' } },
         items.map((r) => replyRow(r, { showCat: true, showUses: state.filter === 'top' }))));
       return;
     }
@@ -546,21 +550,24 @@
     const chip = (label, active, onclick, dropdown = false) => h('button', { class: 'zf-chip' + (active ? ' active' : ''), onclick },
       label, dropdown ? icon('chevronDown', 14) : null);
     const set = (patch) => { Object.assign(state, patch); renderChips(); renderList(); };
-    const typeLabel = state.filter === 'type' ? ZF.TYPE_LABELS[state.type] : 'Por Tipo';
+    const typeLabel = state.filter === 'type' ? ZF.TYPE_LABELS[state.type] : 'Por tipo';
     const cat = state.filter === 'cat' ? catById(state.catId) : null;
     const presentTypes = [...new Set(data.replies.map(ZF.replyType))];
+    // só mostra o filtro que tem serventia agora: com poucas respostas a barra fica com 1 ou 2 chips
+    const hasUncat = data.replies.some((r) => !r.categoryId || !catById(r.categoryId));
+    const hasUses = data.replies.some((r) => r.uses > 0);
     ZF.append(chipsEl,
       chip('Tudo', state.filter === 'all', () => set({ filter: 'all' })),
-      chip(typeLabel, state.filter === 'type', (e) => ui.menu(e.currentTarget, Object.keys(ZF.TYPE_LABELS).filter((t) => presentTypes.includes(t)).map((t) => ({
+      presentTypes.length > 1 || state.filter === 'type' ? chip(typeLabel, state.filter === 'type', (e) => ui.menu(e.currentTarget, Object.keys(ZF.TYPE_LABELS).filter((t) => presentTypes.includes(t)).map((t) => ({
         label: ZF.TYPE_LABELS[t], icon: ZF.TYPE_ICONS[t], active: state.filter === 'type' && state.type === t,
         count: data.replies.filter((r) => ZF.replyType(r) === t).length,
         onClick: () => set({ filter: 'type', type: t }),
-      })), { align: 'left' }), true),
-      chip('Sem Categoria', state.filter === 'uncat', () => set({ filter: 'uncat' })),
-      chip(cat ? cat.name : 'Por Categoria', state.filter === 'cat', (e) => ui.menu(e.currentTarget, data.categories.length
+      })), { align: 'left' }), true) : null,
+      data.categories.length || state.filter === 'cat' ? chip(cat ? cat.name : 'Por categoria', state.filter === 'cat', (e) => ui.menu(e.currentTarget, data.categories.length
         ? data.categories.map((c) => ({ label: c.name, icon: 'shapes', active: state.catId === c.id, count: data.replies.filter((r) => r.categoryId === c.id).length, onClick: () => set({ filter: 'cat', catId: c.id }) }))
-        : [{ label: 'Nenhuma categoria criada', icon: 'plus', onClick: () => openCategoryEditor() }], { align: 'left' }), true),
-      chip('Mais Usadas', state.filter === 'top', () => set({ filter: 'top' })),
+        : [{ label: 'Nenhuma categoria criada', icon: 'plus', onClick: () => openCategoryEditor() }], { align: 'left' }), true) : null,
+      hasUncat || state.filter === 'uncat' ? chip('Sem categoria', state.filter === 'uncat', () => set({ filter: 'uncat' })) : null,
+      hasUses || state.filter === 'top' ? chip('Mais usadas', state.filter === 'top', () => set({ filter: 'top' })) : null,
     );
   }
 
