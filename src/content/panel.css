@@ -227,10 +227,24 @@ svg { flex-shrink: 0; }
   .zf-item-acts { position: static; transform: none; opacity: 1; pointer-events: auto; padding-left: 0; background: none; }
 }
 
+/* pré-visualização: abre minimizada, com um "Ver tudo" quando há mais coisa embaixo */
+.zf-preview-wrap { margin: 1px 0 6px 24px; }
 .zf-preview {
-  margin: 1px 0 5px 24px; padding: 8px 10px; border-radius: 8px; background: var(--surface);
+  position: relative; padding: 8px 10px; border-radius: 8px; background: var(--surface);
   border: 0; border-left: 2px solid var(--border); font-size: 13px; white-space: pre-wrap; word-break: break-word;
 }
+.zf-preview.short { max-height: 160px; overflow: hidden; }
+.zf-preview-wrap.has-more .zf-preview.short::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 52px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+}
+.zf-preview-more {
+  display: none; align-items: center; gap: 4px; margin: 4px 0 0; padding: 3px 8px 3px 6px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--accent);
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.zf-preview-more:hover { background: var(--accent-soft); }
+.zf-preview-wrap.has-more .zf-preview-more { display: inline-flex; }
 .zf-preview .zf-file { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 4px 0; }
 .zf-preview .zf-sep { border-top: 1px solid var(--border); margin: 6px 0; }
 

@@ -10,7 +10,7 @@
     { key: 'purple', hex: '#d9c8f7' }, { key: 'teal', hex: '#b5e3df' }, { key: 'none', hex: 'transparent' },
   ];
 
-  const state = { q: '', filter: 'all', type: null, catId: null, expanded: new Set(), view: { name: 'list' } };
+  const state = { q: '', filter: 'all', type: null, catId: null, expanded: new Set(), full: new Set(), view: { name: 'list' } };
   let data = { replies: [], categories: [] };
   let loaded = false;
   let listEl = null, chipsEl = null;
@@ -431,7 +431,32 @@
   }
 
   /* ---------------- renderização da lista ---------------- */
+  /** Abre/fecha a pré-visualização de uma resposta (sempre volta a abrir minimizada) */
+  function togglePreview(r) {
+    if (state.expanded.has(r.id)) { state.expanded.delete(r.id); state.full.delete(r.id); } else state.expanded.add(r.id);
+    renderList();
+  }
+
+  /** Pré-visualização: abre minimizada e só cresce no "Ver tudo" */
   function previewOf(r) {
+    const full = state.full.has(r.id);
+    const prev = previewBody(r);
+    prev.classList.add(full ? 'full' : 'short');
+    const more = h('button', {
+      class: 'zf-preview-more',
+      onclick: (e) => {
+        e.stopPropagation();
+        if (full) state.full.delete(r.id); else state.full.add(r.id);
+        renderList();
+      },
+    }, icon(full ? 'chevronUp' : 'chevronDown', 14), full ? 'Ver menos' : 'Ver tudo');
+    const wrap = h('div', { class: 'zf-preview-wrap' }, prev, more);
+    // a altura só dá para medir depois de entrar na tela (ver renderList)
+    toMeasure.push({ wrap, prev, full });
+    return wrap;
+  }
+
+  function previewBody(r) {
     const prev = h('div', { class: 'zf-preview' });
     if (r.kind === 'script') {
       const steps = scriptSteps(r);
@@ -463,7 +488,7 @@
     const row = h('div', {
       class: 'zf-item' + (isScript ? ' script' : ''), title: isScript ? `Script com ${(r.steps || []).length} etapa(s)` : ZF.blocksPreview(ZF.actionsToBlocks(r.actions || []), 300),
       onclick: ui.safe(async () => {
-        if (isScript) { state.expanded.has(r.id) ? state.expanded.delete(r.id) : state.expanded.add(r.id); renderList(); return; }
+        if (isScript) { togglePreview(r); return; }
         await useReply(r, ui.settings.clickAction === 'send' ? 'send' : 'insert', row);
       }),
     },
@@ -478,7 +503,7 @@
       h('button', { class: 'zf-iconbtn', title: 'Mais opções', onclick: stop((e) => replyMenu(r, e.currentTarget)) }, icon('more', 18)),
       h('button', {
         class: 'zf-iconbtn', title: isScript ? 'Ver etapas' : 'Pré-visualizar',
-        onclick: stop(() => { state.expanded.has(r.id) ? state.expanded.delete(r.id) : state.expanded.add(r.id); renderList(); }),
+        onclick: stop(() => togglePreview(r)),
       }, icon('eye', 17)),
       h('button', { class: 'zf-iconbtn accent', title: isScript ? 'Enviar todas as etapas' : 'Executar na conversa aberta', onclick: stop(() => useReply(r, 'send', row)) }, icon('send', 17))));
 
@@ -514,7 +539,16 @@
     return items;
   }
 
+  /** Monta a lista e, com ela já na tela, decide quais pré-visualizações precisam do "Ver tudo" */
+  let toMeasure = [];
   function renderList() {
+    toMeasure = [];
+    renderRows();
+    toMeasure.forEach(({ wrap, prev, full }) => wrap.classList.toggle('has-more', full || prev.scrollHeight > prev.clientHeight + 4));
+    toMeasure = [];
+  }
+
+  function renderRows() {
     if (!listEl) return;
     listEl.replaceChildren();
     if (!data.replies.length) {
