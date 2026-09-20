@@ -69,6 +69,7 @@
       return await fn(...args);
     } catch (e) {
       if (ZF.isContextGone(e)) ZF.shutdown();
+      else if (e && e.zfUser) console.warn('[ZapFlow]', e.message);
       else console.error('[ZapFlow]', e);
       ui.toast(ui.errorMessage(e), 'error', 5000);
     }
@@ -444,7 +445,7 @@
 
   /** Google Agenda a partir da conversa aberta */
   ui.eventForActiveChat = async () => {
-    const info = ZF.wa.getCompose() ? await ZF.wa.activeChatInfo() : null;
+    const info = await ZF.wa.activeChatInfo();
     const rec = info && ZF.crm ? ZF.crm.record(info) : null;
     const lastNote = rec && rec.notes && rec.notes.length ? rec.notes[rec.notes.length - 1].text : '';
     ui.openEventEditor(info ? {

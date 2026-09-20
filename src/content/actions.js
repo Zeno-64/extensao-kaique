@@ -112,7 +112,7 @@
   /** Código Pix copia e cola (BR Code estático, padrão do Banco Central) */
   ZF.pixPayload = ({ keyType, key, name, city, amount, txid, description }) => {
     const k = ZF.pixKey(keyType, key);
-    if (!k) throw new Error('Informe a chave Pix');
+    if (!k) throw ZF.userError('Informe a chave Pix');
     let mai = tlv('00', 'br.gov.bcb.pix') + tlv('01', k);
     const desc = ascii(description, Math.max(0, 99 - mai.length - 4));
     if (desc) mai += tlv('02', desc);
@@ -355,7 +355,7 @@
             break;
           }
           case 'crm_add':
-            if (!a.tabId) throw new Error('Escolha a aba');
+            if (!a.tabId) throw ZF.userError('Escolha a aba');
             await crmUpdate((c) => { c.tags = [...new Set([...(c.tags || []), a.tabId])]; });
             break;
           case 'crm_remove': await crmUpdate((c) => { c.tags = (c.tags || []).filter((t) => t !== a.tabId); }); break;

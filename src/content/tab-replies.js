@@ -37,8 +37,8 @@
   /* ---------------- usar uma resposta ---------------- */
   /** Conversa aberta + variáveis (pergunta os campos personalizados). null = cancelado */
   async function prepare(actionsList) {
-    if (!ZF.wa.getCompose()) throw new Error('Abra uma conversa no WhatsApp primeiro.');
     const info = await ZF.wa.activeChatInfo();
+    if (!info) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
     const vars = ZF.builtinVars({ name: info && info.name, phone: info && info.phone });
     const used = ZF.findVarsInActions(actionsList);
     const ask = used.filter((v) => (!ZF.BUILTIN_VARS.includes(v) && !(v in vars)) || (v === 'nome' && !vars.nome) || (v === 'primeiro_nome' && !vars.primeiro_nome && !used.includes('nome')));
@@ -85,7 +85,7 @@
     if (reply.kind === 'script') {
       if (mode === 'send') return runScript(reply, rowEl);
       const first = scriptSteps(reply)[0];
-      if (!first) throw new Error('Este script não tem etapas.');
+      if (!first) throw ZF.userError('Este script não tem etapas.');
       return useReply(first, 'insert', rowEl);
     }
     const ctx = await prepare(reply.actions);
@@ -97,7 +97,7 @@
       ui.toast('Resposta enviada', 'ok');
     } else {
       const blocks = ZF.renderBlocks(ZF.actionsToBlocks(reply.actions), ctx.vars, false);
-      if (!blocks.length) throw new Error('Esta resposta só tem automações. Use o botão ➤ para executar.');
+      if (!blocks.length) throw ZF.userError('Esta resposta só tem automações. Use o botão ➤ para executar.');
       const r = await ZF.wa.insertBlocks(blocks);
       const extras = (reply.actions || []).length - blocks.length;
       if (r.skippedFiles || extras > 0) ui.toast('Texto inserido. Para enviar tudo (arquivos e ações), use o botão ➤', 'info', 4000);
@@ -108,7 +108,7 @@
 
   async function runScript(script, rowEl, from = 0) {
     const steps = scriptSteps(script).slice(from);
-    if (!steps.length) throw new Error('Este script não tem etapas.');
+    if (!steps.length) throw ZF.userError('Este script não tem etapas.');
     const ctx = await prepare(steps.flatMap((s) => s.actions || []));
     if (!ctx) return;
     steps.delay = script.delay || 3;
@@ -385,7 +385,7 @@
 
   const onlyMessages = (r) => {
     const blocks = ZF.actionsToBlocks(r.actions || []);
-    if (!blocks.length) throw new Error('Esta resposta não tem mensagens para enviar.');
+    if (!blocks.length) throw ZF.userError('Esta resposta não tem mensagens para enviar.');
     if (blocks.length < (r.actions || []).length) ui.toast('Só as mensagens entram (automações como abas e etiquetas ficam de fora).', 'info', 4500);
     return blocks;
   };

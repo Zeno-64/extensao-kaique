@@ -9,12 +9,19 @@
 
   const SEL = {
     appReady: ['#pane-side', '#side', '[data-testid="chat-list"]', 'div[aria-label="Lista de conversas"]', 'div[aria-label="Chat list"]'],
-    main: ['#main'],
+    main: ['#main', '[data-testid="conversation-panel-wrapper"]', '[data-testid="conversation-panel-messages"]'],
     compose: [
       '#main footer div[contenteditable="true"][role="textbox"]',
       '#main footer div[contenteditable="true"]',
       '#main div[contenteditable="true"][data-tab="10"]',
+      'footer div[contenteditable="true"][role="textbox"]',
       'footer div[contenteditable="true"]',
+      '[data-testid="conversation-compose-box-input"]',
+      'div[contenteditable="true"][data-tab="10"]',
+      'div[contenteditable="true"][aria-placeholder*="mensagem" i]',
+      'div[contenteditable="true"][aria-placeholder*="message" i]',
+      'div[contenteditable="true"][aria-label*="Digite uma mensagem" i]',
+      'div[contenteditable="true"][aria-label*="Type a message" i]',
     ],
     sendIcon: [
       'span[data-icon="send"]',
@@ -26,17 +33,17 @@
       'button[aria-label="Send"]',
       'div[role="button"][aria-label="Send"]',
     ],
-    header: ['#main header'],
-    pending: ['#main [data-icon="msg-time"]', '#main [data-icon="status-time"]'],
+    header: ['#main header', '[data-testid="conversation-header"]', '[data-testid="conversation-info-header"]'],
+    pending: ['[data-icon="msg-time"]', '[data-icon="status-time"]'],
     popup: ['[data-animate-modal-popup="true"]', 'div[role="dialog"]'],
     attachBtn: [
-      '#main footer [data-icon="plus-rounded"]',
-      '#main footer [data-icon="plus"]',
-      '#main footer [data-icon="attach-menu-plus"]',
-      '#main footer [data-icon="clip"]',
-      '#main footer button[title="Anexar"]',
-      '#main footer [aria-label="Anexar"]',
-      '#main footer [aria-label="Attach"]',
+      '[data-icon="plus-rounded"]',
+      '[data-icon="plus"]',
+      '[data-icon="attach-menu-plus"]',
+      '[data-icon="clip"]',
+      'button[title="Anexar"]',
+      '[aria-label="Anexar"]',
+      '[aria-label="Attach"]',
     ],
     captionBox: [
       'div[contenteditable="true"][aria-label*="legenda" i]',
@@ -108,10 +115,29 @@
 
   /* ---------------- estado da interface ---------------- */
   const isReady = () => !!qs(SEL.appReady);
-  const getCompose = () => {
-    const el = qs(SEL.compose);
-    return el && visible(el) ? el : null;
+  const matchesAny = (el, sels) => [].concat(sels).some((s) => { try { return el.matches(s); } catch (e) { return false; } });
+  /** É um campo da conversa aberta? (não da lista, de uma janela flutuante ou da legenda de um arquivo) */
+  const inChat = (el) => !!el && !el.closest('#side, #pane-side, #zapflow-root, [data-animate-modal-popup="true"], div[role="dialog"]') && !matchesAny(el, SEL.captionBox);
+  const getCompose = () => qsa(SEL.compose).find((el) => visible(el) && inChat(el)) || null;
+  /** Tem conversa aberta na tela? Vários sinais, porque o WhatsApp troca de layout sem avisar */
+  const chatOpen = () => !!(qsa(SEL.main).some(visible) || qsa(SEL.header).some(visible) || getCompose());
+  /** Rodapé da conversa: partindo do campo de mensagem, sobrevive a mudanças no #main */
+  const chatFooter = () => {
+    const box = getCompose();
+    return (box && box.closest('footer, [data-testid="compose-box"]')) || qs('#main footer') || null;
   };
+  /** Painel da conversa aberta (lista de mensagens + rodapé) */
+  const chatPanel = () => {
+    const footer = chatFooter();
+    return qs(SEL.main) || (footer && footer.parentElement) || null;
+  };
+  /** Campo de mensagem da conversa aberta; o erro diz o que está faltando */
+  function requireCompose() {
+    const box = getCompose();
+    if (box) return box;
+    if (!chatOpen()) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
+    throw ZF.userError('Não achei o campo de mensagem desta conversa. Clique no campo de texto do WhatsApp e tente de novo (em conversas só de leitura não dá para escrever).');
+  }
 
   function headerTitle() {
     const header = qs(SEL.header);
@@ -122,7 +148,7 @@
 
   /** Informações da conversa aberta (nome/telefone), com o melhor dado disponível */
   async function activeChatInfo() {
-    if (!qs(SEL.main)) return null;
+    if (!chatOpen()) return null;
     const title = headerTitle();
     const r = await bridge('getActiveChat', {}, 3000);
     if (r && r.ok) return { ...r, name: r.name || r.pushname || title };
@@ -192,7 +218,7 @@
 
   /** Botão de enviar dentro do rodapé da conversa */
   const footerSendButton = () => {
-    const footer = qs('#main footer');
+    const footer = chatFooter();
     if (!footer) return null;
     const icon = qsa(SEL.sendIcon, footer).find(visible);
     return icon ? clickable(icon) : null;
@@ -200,28 +226,40 @@
 
   /** Botão de enviar da tela de pré-visualização de mídia (fora do rodapé) */
   const mediaSendButton = () => {
-    const footer = qs('#main footer');
+    const footer = chatFooter();
     const icons = qsa(SEL.sendIcon).filter((e) => visible(e) && !(footer && footer.contains(e)) && !e.closest('#side, #pane-side'));
     return icons.length ? clickable(icons[icons.length - 1]) : null;
   };
 
+  /** Botão de anexo do rodapé da conversa aberta */
+  const attachButton = () => {
+    const footer = chatFooter();
+    const el = footer ? qs(SEL.attachBtn, footer) : null;
+    return el && visible(el) ? clickable(el) : null;
+  };
+
   const captionBox = () => {
-    const compose = qs(SEL.compose);
-    const direct = qsa(SEL.captionBox).filter((e) => visible(e) && e !== compose);
+    const compose = getCompose();
+    const footer = chatFooter();
+    const outside = (e) => visible(e) && e !== compose && !e.closest('#side, #pane-side, #zapflow-root') && !(footer && footer.contains(e));
+    const direct = qsa(SEL.captionBox).filter(outside);
     if (direct.length) return direct[direct.length - 1];
-    const all = qsa('div[contenteditable="true"]').filter((e) => visible(e) && e !== compose && !e.closest('#side, #pane-side, #main footer'));
+    const all = qsa('div[contenteditable="true"]').filter(outside);
     return all.length ? all[all.length - 1] : null;
   };
 
+  /** Relógios de "enviando…" da conversa aberta (não os da lista de conversas) */
+  const pendingIcons = () => qsa(SEL.pending, chatPanel() || document).filter((e) => visible(e) && !e.closest('#side, #pane-side'));
+
   async function waitPendingClear(timeout = 30000) {
     await sleep(400);
-    await waitFor(() => !qsa(SEL.pending).some(visible), timeout, 400);
+    await waitFor(() => !pendingIcons().length, timeout, 400);
   }
 
   /* ---------------- envio ---------------- */
   async function sendText(text) {
-    const box = await waitFor(getCompose, 8000);
-    if (!box) throw new Error('Campo de mensagem não encontrado');
+    let box = await waitFor(getCompose, 8000);
+    if (!box) box = requireCompose();
     const ok = await insertText(box, text, { replace: true });
     if (!ok) throw new Error('Não foi possível escrever a mensagem');
     await sleep(ZF.rand(250, 500));
@@ -234,7 +272,7 @@
   }
 
   async function attachViaInput(file) {
-    const btn = qs(SEL.attachBtn);
+    const btn = attachButton();
     if (!btn) return false;
     realClick(btn);
     const isMedia = /^(image|video)\//.test(file.type);
@@ -257,8 +295,8 @@
   }
 
   async function sendFile(fileRec, caption = '') {
-    const box = await waitFor(getCompose, 8000);
-    if (!box) throw new Error('Campo de mensagem não encontrado');
+    let box = await waitFor(getCompose, 8000);
+    if (!box) box = requireCompose();
     await clearBox(box);
     const file = fileRec.file || ZF.dataURLtoFile(fileRec.data, fileRec.name, fileRec.mime);
 
@@ -305,7 +343,7 @@
   /** Envia uma sequência de blocos (já renderizados) na conversa aberta */
   async function sendBlocks(blocks) {
     const list = blocks.filter(ZF.blockHasContent);
-    if (!list.length) throw new Error('Mensagem vazia');
+    if (!list.length) throw ZF.userError('Mensagem vazia');
     for (let i = 0; i < list.length; i++) {
       await sendBlockUI(list[i]);
       if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
@@ -314,8 +352,7 @@
 
   /** Coloca o texto no campo (sem enviar). Arquivos são apenas anexados na pré-visualização. */
   async function insertBlocks(blocks) {
-    const box = getCompose();
-    if (!box) throw new Error('Abra uma conversa primeiro');
+    const box = requireCompose();
     blocks = ZF.signBlocks(blocks, await signatureName((ZF.ui && ZF.ui.settings) || (await ZF.store.settings())));
     const texts = blocks.filter((b) => (b.type === 'text' && b.text.trim()) || b.type === 'vcard').map((b) => (b.type === 'vcard' ? ZF.vcardText(b) : b.text));
     const files = blocks.filter((b) => b.type === 'file');
@@ -448,7 +485,7 @@
    */
   async function deliver(target, blocks, settings = {}, { isOpen = false } = {}) {
     const list = ZF.signBlocks(blocks.filter(ZF.blockHasContent), await signatureName(settings));
-    if (!list.length) throw new Error('Mensagem vazia');
+    if (!list.length) throw ZF.userError('Mensagem vazia');
     // isOpen: o destino já é a conversa aberta — o caminho pela interface não precisa abrir nada
     let ui = isOpen ? { prevChat: null } : null;
     for (let i = 0; i < list.length; i++) {
@@ -498,9 +535,9 @@
     const ping = await bridge('ping', {}, 3000);
     return {
       appReady: isReady(),
-      chatOpen: !!qs(SEL.main),
+      chatOpen: chatOpen(),
       compose: !!getCompose(),
-      attach: !!qs(SEL.attachBtn),
+      attach: !!attachButton(),
       bridge: ping && ping.ok ? ping.modules : null,
     };
   }
@@ -523,7 +560,7 @@
 
   ZF.wa = {
     SEL, qs, qsa, waitFor, visible, bridge, call,
-    isReady, getCompose, headerTitle, activeChatInfo,
+    isReady, getCompose, chatOpen, requireCompose, headerTitle, activeChatInfo,
     insertText, sendText, sendFile, sendBlocks, insertBlocks,
     openChatUI, openChatViaLink, openChatByLink, deliver, signatureName,
     waitChatAfterNavigation, waitPendingClear, diagnostics,

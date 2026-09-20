@@ -6,6 +6,12 @@
   ZF.uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   /*
+   * Erro "de uso" (falta abrir uma conversa, campo vazio…): vira aviso na tela, não é defeito.
+   * Fica fora do console.error para não encher a página de erros da extensão.
+   */
+  ZF.userError = (msg) => Object.assign(new Error(msg), { zfUser: true });
+
+  /*
    * Em abas ocultas o Chrome limita setTimeout a ~1 vez por minuto.
    * Nesse caso a espera é feita pelo service worker, que não sofre esse limite.
    */

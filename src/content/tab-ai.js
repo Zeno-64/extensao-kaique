@@ -79,9 +79,9 @@
   const actions = {
     async suggest() {
       const info = await ZF.wa.activeChatInfo();
-      if (!info) throw new Error('Abra uma conversa no WhatsApp primeiro.');
+      if (!info) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
       const msgs = await readConversation(30);
-      if (!msgs.length) throw new Error('Não encontrei mensagens nesta conversa.');
+      if (!msgs.length) throw ZF.userError('Não encontrei mensagens nesta conversa.');
       await ask({
         kind: 'message', label: `Sugestão de resposta — ${info.name || 'conversa'}`,
         prompt: `Conversa recente no WhatsApp com ${info.name || 'o cliente'}:\n<conversa>\n${transcript(msgs, ZF.firstName(info.name))}\n</conversa>\n\nEscreva a próxima mensagem que o atendente deve enviar, respondendo ao que ficou pendente.`,
@@ -89,9 +89,9 @@
     },
     async summarize() {
       const info = await ZF.wa.activeChatInfo();
-      if (!info) throw new Error('Abra uma conversa no WhatsApp primeiro.');
+      if (!info) throw ZF.userError('Abra uma conversa no WhatsApp primeiro.');
       const msgs = await readConversation(60);
-      if (!msgs.length) throw new Error('Não encontrei mensagens nesta conversa.');
+      if (!msgs.length) throw ZF.userError('Não encontrei mensagens nesta conversa.');
       await ask({
         kind: 'note', label: `Resumo — ${info.name || 'conversa'}`,
         prompt: `Conversa no WhatsApp com ${info.name || 'o cliente'}:\n<conversa>\n${transcript(msgs, ZF.firstName(info.name))}\n</conversa>\n\nResuma em tópicos curtos: o que a pessoa quer, o que já foi combinado, o que está pendente e o próximo passo recomendado. Este resumo é para o atendente, não para enviar.`,
@@ -99,7 +99,7 @@
     },
     async rewrite(mode) {
       const text = composeText();
-      if (!text) throw new Error('Escreva algo no campo de mensagem do WhatsApp primeiro.');
+      if (!text) throw ZF.userError('Escreva algo no campo de mensagem do WhatsApp primeiro.');
       const s = await store.settings();
       const orders = {
         improve: 'Reescreva a mensagem abaixo deixando-a mais clara, cordial e profissional, mantendo o sentido e um tamanho parecido.',
@@ -111,7 +111,7 @@
       await ask({ kind: 'message', label: labels[mode], source: 'compose', prompt: `${orders[mode]}\n\n<mensagem>\n${text}\n</mensagem>` });
     },
     async free(text, withChat) {
-      if (!text.trim()) throw new Error('Escreva o que você quer pedir à IA.');
+      if (!text.trim()) throw ZF.userError('Escreva o que você quer pedir à IA.');
       let prompt = text.trim();
       if (withChat) {
         const info = await ZF.wa.activeChatInfo();
@@ -136,13 +136,12 @@
     }
     if (how === 'note') {
       const info = await ZF.wa.activeChatInfo();
-      if (!info) throw new Error('Abra a conversa para salvar a nota.');
+      if (!info) throw ZF.userError('Abra a conversa para salvar a nota.');
       await ZF.crm.upsert(info, (c) => { c.notes = [...(c.notes || []), { id: ZF.uid(), text: r.text, createdAt: Date.now() }]; });
       ui.toast('Salvo nas notas do contato', 'ok');
       return;
     }
-    const box = ZF.wa.getCompose();
-    if (!box) throw new Error('Abra uma conversa no WhatsApp primeiro.');
+    const box = ZF.wa.requireCompose();
     if (how === 'replace') {
       const ok = await ZF.wa.bridge('composeInsert', { text: r.text, replace: true }, 3000);
       if (!(ok && ok.ok && (await ZF.wa.waitFor(() => box.innerText.trim() === r.text.trim(), 1500, 100)))) {

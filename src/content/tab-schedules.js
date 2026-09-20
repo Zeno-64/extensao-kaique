@@ -239,7 +239,7 @@
     const others = schedules.length - list.length;
 
     ZF.append(body, 
-      h('button', { class: 'zf-btn primary block', style: { marginBottom: '8px' }, onclick: ui.safe(() => openScheduleEditor(null, { useActiveChat: !!ZF.wa.getCompose() })) }, icon('plus', 16), 'Novo agendamento'),
+      h('button', { class: 'zf-btn primary block', style: { marginBottom: '8px' }, onclick: ui.safe(() => openScheduleEditor(null, { useActiveChat: ZF.wa.chatOpen() })) }, icon('plus', 16), 'Novo agendamento'),
       // a tela abre mostrando so o que esta agendado para a conversa aberta
       info ? h('div', { class: 'zf-scope' },
         icon(info.isGroup ? 'users' : 'user', 15),

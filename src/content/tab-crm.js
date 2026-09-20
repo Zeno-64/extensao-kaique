@@ -38,7 +38,7 @@
     if (!force && (!ui.open || !['crm', 'notes', 'schedules'].includes(ui.current))) return;
     checking = true;
     try {
-      const info = ZF.wa.qs(ZF.wa.SEL.main) ? await ZF.wa.activeChatInfo() : null;
+      const info = await ZF.wa.activeChatInfo();
       const key = info ? ZF.chatKey(info) : null;
       const labelsChanged = info && active.info && (info.labels || []).join() !== (active.info.labels || []).join();
       if (key !== active.key || !active.checked || labelsChanged) {
@@ -67,7 +67,7 @@
     /** Cria/atualiza o registro da conversa e aplica fn(registro) */
     upsert(info, fn) {
       const k = ZF.chatKey(info);
-      if (!k) throw new Error('Não consegui identificar esta conversa');
+      if (!k) throw ZF.userError('Não consegui identificar esta conversa');
       return store.update('crmChats', (map) => {
         const cur = map[k] || { tags: [], notes: [] };
         cur.name = info.name || cur.name || '';
