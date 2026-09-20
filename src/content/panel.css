@@ -603,6 +603,20 @@ svg { flex-shrink: 0; }
 .zf-act-sum { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .zf-act-b { padding: 4px 12px 12px; }
 .zf-act-b > .zf-textarea { background: var(--bg); }
+/* controle deslizante (ritmo do disparo, como no WaSpeed) */
+.zf-rangerow { display: flex; align-items: center; gap: 10px; }
+.zf-range-v { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; flex: none; }
+.zf-range {
+  flex: 1; min-width: 0; height: 4px; padding: 0; margin: 6px 0;
+  -webkit-appearance: none; appearance: none; background: var(--border); border-radius: 999px; outline: 0; cursor: pointer;
+}
+.zf-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--bg); border: 4px solid var(--accent); cursor: pointer; box-shadow: 0 1px 3px rgba(15, 23, 42, .3);
+}
+.zf-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--bg); border: 4px solid var(--accent); cursor: pointer; }
+.zf-range:focus-visible { box-shadow: 0 0 0 3px var(--accent-soft); }
+
 /* ritmo da mensagem: "digitando…" antes e espera depois (como no WaSpeed) */
 .zf-pace {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;

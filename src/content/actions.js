@@ -192,6 +192,17 @@
       default: return [];
     }
   };
+  /** Intervalo de uma campanha, em segundos (campanhas antigas guardavam mínimo/máximo) */
+  ZF.campaignDelay = (c = {}) => {
+    const d = Number(c.delay);
+    if (d > 0) return d;
+    const a = Number(c.minDelay) || 0;
+    const b = Number(c.maxDelay) || a;
+    return Math.round((a + b) / 2) || 15;
+  };
+  /** Duração da pausa longa, em segundos (antes era em minutos) */
+  ZF.campaignPause = (c = {}) => (c.pauseSeconds != null ? Math.max(0, Number(c.pauseSeconds) || 0) : Math.max(0, Number(c.pauseMinutes) || 0) * 60);
+
   /** Segundos de "digitando…" e de espera guardados na própria ação de mensagem */
   ZF.actionPace = (a) => ({
     typing: Math.max(0, Math.min(120, Number(a && a.typingSeconds) || 0)),

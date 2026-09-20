@@ -28,9 +28,9 @@
     return r;
   };
   const estimate = (n, c) => {
-    const avg = ((Number(c.minDelay) || 0) + (Number(c.maxDelay) || 0)) / 2 + 6; // +6s para abrir conversa/enviar
+    const avg = ZF.campaignDelay(c) + 6; // +6s para abrir conversa/enviar
     const pauses = c.pauseEvery > 0 ? Math.floor(Math.max(0, n - 1) / c.pauseEvery) : 0;
-    return (n * avg + pauses * (Number(c.pauseMinutes) || 0) * 60) * 1000;
+    return (n * avg + pauses * ZF.campaignPause(c)) * 1000;
   };
 
   const go = (v) => {
@@ -53,8 +53,7 @@
       name: defaults.name || '',
       rawContacts: '',
       blocks: defaults.blocks || [],
-      minDelay: s.bulkMinDelay, maxDelay: s.bulkMaxDelay,
-      pauseEvery: s.bulkPauseEvery, pauseMinutes: s.bulkPauseMinutes,
+      delay: s.bulkDelay, pauseEvery: s.bulkPauseEvery, pauseSeconds: s.bulkPauseSeconds,
     };
     let parsed = ZF.parseContacts(cfg.rawContacts || '', s.countryCode);
     // destinatários escolhidos do próprio WhatsApp (conversas, grupos, etiquetas)
@@ -192,15 +191,16 @@
       return list.map((t) => ({ label: t.name, icon: 'folderArrow', count: ZF.crm.countInTab(t.id), onClick: () => addPicked(ZF.crm.chatsInTab(t.id), t.name) }));
     }
 
-    const minD = ui.input({ type: 'number', min: 3, value: cfg.minDelay, style: { width: '84px' } });
-    const maxD = ui.input({ type: 'number', min: 3, value: cfg.maxDelay, style: { width: '84px' } });
-    const pEvery = ui.input({ type: 'number', min: 0, value: cfg.pauseEvery });
-    const pMin = ui.input({ type: 'number', min: 0, value: cfg.pauseMinutes });
-    [minD, maxD, pEvery, pMin].forEach((i) => i.addEventListener('input', renderSummary));
+    // ritmo em barras deslizantes: um intervalo só, a pausa em contatos e em segundos
+    const dSlider = ui.slider({ min: 3, max: 180, value: ZF.campaignDelay(cfg), unit: 'Segundos' });
+    const pEvery = ui.slider({ min: 0, max: 200, value: cfg.pauseEvery, unit: 'Contatos', zero: 'Sem pausa' });
+    const pSec = ui.slider({ min: 0, max: 600, step: 5, value: ZF.campaignPause(cfg), unit: 'Segundos', zero: 'Sem pausa' });
+    [dSlider, pEvery, pSec].forEach((i) => i.addEventListener('input', renderSummary));
     function readDelays() {
-      const a = Math.max(3, Number(minD.value) || 3);
-      const b = Math.max(a, Number(maxD.value) || a);
-      return { minDelay: a, maxDelay: b, pauseEvery: Math.max(0, Number(pEvery.value) || 0), pauseMinutes: Math.max(0, Number(pMin.value) || 0) };
+      const delay = Math.max(3, dSlider.get());
+      const pauseSeconds = Math.max(0, pSec.get());
+      // minDelay/maxDelay/pauseMinutes seguem gravados para as campanhas antigas continuarem lendo
+      return { delay, minDelay: delay, maxDelay: delay, pauseEvery: Math.max(0, pEvery.get()), pauseSeconds, pauseMinutes: pauseSeconds / 60 };
     }
 
     const startMode = ui.select([{ value: 'now', label: 'Começar agora' }, { value: 'later', label: 'Agendar início' }], 'now');
@@ -277,9 +277,9 @@
         editorWrap),
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Ritmo de envio'),
-        ui.field('Intervalo(s)', h('div', { class: 'zf-row', style: { gap: '8px' } }, minD, h('span', { class: 'zf-small' }, 'a'), maxD),
-          'Cada envio espera um tempo sorteado entre os dois. Iguais = intervalo fixo.'),
-        h('div', { class: 'zf-grid2' }, ui.field('Pausa longa a cada (msgs)', pEvery), ui.field('Duração da pausa (min)', pMin)),
+        ui.field('Intervalo (s)', dSlider),
+        ui.field('Pausa (a cada X envios)', pEvery),
+        ui.field('Tempo de pausa em (s)', pSec),
         ui.field('Início', h('div', {}, startMode, startAt))),
       h('div', { class: 'zf-note' }, icon('alert', 16), h('span', {},
         'Envio em massa pode fazer o WhatsApp restringir ou banir o número. Envie só para quem conhece você (ex.: pacientes/clientes), use intervalos longos, varie o texto com {a|b} e evite links em excesso.')),

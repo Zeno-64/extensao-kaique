@@ -71,6 +71,11 @@ eq('digitando no primeiro bloco', [paced.length, paced[0].typingSeconds, paced[0
 eq('espera no último bloco', [paced[1].afterSeconds, paced[1].typingSeconds], [9, undefined]);
 eq('sem ritmo, bloco limpo', plain(ZF.actionsToBlocks([{ type: 'text', text: 'oi' }])), [{ type: 'text', text: 'oi' }]);
 eq('ritmo fora do limite', ZF.actionPace({ typingSeconds: 999, afterSeconds: -5 }), { typing: 120, after: 0 });
+// ritmo do disparo: intervalo único, com leitura das campanhas antigas (mínimo/máximo e minutos)
+eq('intervalo novo', ZF.campaignDelay({ delay: 25, minDelay: 3, maxDelay: 9 }), 25);
+eq('intervalo antigo vira média', ZF.campaignDelay({ minDelay: 15, maxDelay: 41 }), 28);
+eq('intervalo sem nada', ZF.campaignDelay({}), 15);
+eq('pausa em segundos', [ZF.campaignPause({ pauseSeconds: 90 }), ZF.campaignPause({ pauseMinutes: 5 }), ZF.campaignPause({ pauseSeconds: 0, pauseMinutes: 5 }), ZF.campaignPause({})], [90, 300, 0, 0]);
 eq('resumo mostra o ritmo', ZF.actionSummary({ type: 'text', text: 'oi', typingSeconds: 3, afterSeconds: 2 }), 'oi • digitando 3s, espera 2s');
 
 /* ---------------- migração (v1.1 → v1.2) ---------------- */

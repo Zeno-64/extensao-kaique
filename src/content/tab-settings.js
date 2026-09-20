@@ -187,8 +187,8 @@
         row({ icon: 'refresh', label: 'Recarregar a página se não houver outro jeito', hint: 'Último recurso para abrir a conversa pelo link. Deixe desligado', control: sw('allowReload') }),
         row({ icon: 'clock', label: 'Tolerância de atraso dos agendamentos (minutos)', hint: 'Se o computador estava desligado na hora, envia com atraso até esse limite. 0 = sempre', control: number('lateToleranceMin', 0, 10080) })),
       card('Padrões do envio em massa',
-        row({ icon: 'timer', label: 'Intervalo entre mensagens (segundos)', control: h('div', { class: 'zf-row', style: { gap: '6px' } }, number('bulkMinDelay', 3, 3600, '74px'), 'a', number('bulkMaxDelay', 3, 3600, '74px')) }),
-        row({ icon: 'pause', label: 'Pausa longa', hint: 'A cada tantas mensagens, pausa por tantos minutos', control: h('div', { class: 'zf-row', style: { gap: '6px' } }, number('bulkPauseEvery', 0, 1000, '74px'), 'msgs /', number('bulkPauseMinutes', 0, 600, '74px'), 'min') })),
+        row({ icon: 'timer', label: 'Intervalo entre mensagens (segundos)', control: number('bulkDelay', 3, 3600) }),
+        row({ icon: 'pause', label: 'Pausa longa', hint: 'A cada tantos contatos, pausa por tantos segundos', control: h('div', { class: 'zf-row', style: { gap: '6px' } }, number('bulkPauseEvery', 0, 1000, '74px'), 'contatos /', number('bulkPauseSeconds', 0, 3600, '74px'), 's') })),
     ];
   }
 

@@ -16,10 +16,9 @@
     lateToleranceMin: 720, // agendamentos atrasados além disso viram "perdidos" (0 = sem limite)
     autoOpenWhatsApp: true,
     notifications: true,
-    bulkMinDelay: 15,
-    bulkMaxDelay: 40,
-    bulkPauseEvery: 20,
-    bulkPauseMinutes: 5,
+    bulkDelay: 15, // intervalo entre os envios, em segundos
+    bulkPauseEvery: 20, // pausa longa a cada tantos contatos (0 = sem pausa)
+    bulkPauseSeconds: 60, // duração dessa pausa, em segundos
     filesMaxMB: 30,
     eventMinutes: 60, // duração padrão dos eventos do Google Agenda
     aiModel: 'claude-opus-5',
@@ -260,6 +259,12 @@
       // v1.7: os botões flutuantes passaram a nascer no canto de baixo da conversa, acima da barra de digitação
       if (settings && settings.dockPlaced === undefined) {
         await store.saveSettings({ dockPlaced: false, dockSide: 'left', dockX: null, dockBottom: null });
+        changed = true;
+      }
+      // v1.8: o disparo passou a ter um intervalo só (sem mínimo/máximo) e a pausa em segundos
+      if (settings && settings.bulkDelay === undefined) {
+        const mid = Math.round(((Number(settings.bulkMinDelay) || 15) + (Number(settings.bulkMaxDelay) || Number(settings.bulkMinDelay) || 15)) / 2);
+        await store.saveSettings({ bulkDelay: mid || 15, bulkPauseSeconds: Math.round((Number(settings.bulkPauseMinutes) || 1) * 60) });
         changed = true;
       }
       // v1.8: o painel não pode ficar por cima da conversa; religa o "empurrar" uma vez só

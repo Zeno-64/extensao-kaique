@@ -128,7 +128,7 @@ Na hora marcada aparece um **alerta na tela** e uma **notificação do Windows**
 ### Disparos em massa
 1. **Destinatários**: cole a lista, importe uma **planilha (.xlsx ou .csv)** ou use **Do WhatsApp** → conversas, grupos (envia no grupo), participantes de grupos, etiquetas do WhatsApp ou abas do CRM. Repetidos são ignorados.
 2. **Mensagem**: escreva ou carregue uma resposta rápida (as mensagens dela entram; automações ficam de fora).
-3. **Ritmo**: **Intervalo(s)** — um tempo sorteado entre o menor e o maior (iguais = intervalo fixo) — e pausas longas.
+3. **Ritmo** (barras deslizantes, como no WaSpeed): **Intervalo (s)** entre um envio e o próximo, **Pausa (a cada X envios)** e **Tempo de pausa em (s)**.
 4. **Iniciar** (ou agendar o início). Acompanhe, pause, retome, baixe o relatório e reenvie as falhas.
 
 > ⚠️ **Risco de bloqueio**: envio em massa pode fazer o WhatsApp restringir o número. Envie só para quem conhece você, use intervalos longos (15–60 s), pausas e varie o texto com `{a|b}`.

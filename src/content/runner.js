@@ -94,14 +94,14 @@
       ct.error = result.ok ? null : result.error || null;
       ct.at = Date.now();
 
-      let delay = ZF.rand(c.minDelay, c.maxDelay) * 1000;
+      let delay = ZF.campaignDelay(c) * 1000;
       if (result.invalid) delay = ZF.rand(3, 6) * 1000;
       if (result.ok) {
         c.consecutiveFails = 0;
         c.batchCount = (c.batchCount || 0) + 1;
         if (c.pauseEvery > 0 && c.batchCount >= c.pauseEvery) {
           c.batchCount = 0;
-          delay += c.pauseMinutes * 60000;
+          delay += ZF.campaignPause(c) * 1000;
         }
       } else if (!result.invalid) {
         c.consecutiveFails = (c.consecutiveFails || 0) + 1;

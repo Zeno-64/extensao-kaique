@@ -718,6 +718,21 @@
   /* ---------------- componentes de formulário ---------------- */
   ui.field = (label, control, hint) => h('div', { class: 'zf-field' }, label ? h('label', {}, label) : null, control, hint ? h('div', { class: 'zf-hint' }, hint) : null);
   ui.input = (props = {}) => h('input', { class: 'zf-input', ...props });
+  /**
+   * Controle deslizante com o valor escrito ao lado (estilo do WaSpeed).
+   * zero: texto de quando o valor é 0 (ex.: "Sem pausa").
+   */
+  ui.slider = ({ min = 0, max = 100, step = 1, value = 0, unit = '', zero = '' } = {}) => {
+    const v = Math.max(min, Math.min(max, Number(value) || 0));
+    const range = h('input', { class: 'zf-range', type: 'range', min, max, step, value: v });
+    const out = h('span', { class: 'zf-range-v' });
+    const show = () => { const n = Number(range.value); out.textContent = !n && zero ? zero : `${n} ${unit}`.trim(); };
+    range.addEventListener('input', show);
+    show();
+    const el = h('div', { class: 'zf-rangerow' }, range, out);
+    el.get = () => Number(range.value);
+    return el;
+  };
   ui.select = (options, value, props = {}) => h('select', { class: 'zf-select', ...props },
     options.map((o) => h('option', { value: o.value, selected: String(o.value) === String(value) }, o.label)));
   ui.checkbox = (label, checked, onchange) => {
