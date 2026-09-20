@@ -35,7 +35,7 @@
   let checking = false;
   async function checkChat(force = false) {
     if (checking || !ZF.wa.isReady()) return;
-    if (!force && (!ui.open || !['crm', 'notes'].includes(ui.current))) return;
+    if (!force && (!ui.open || !['crm', 'notes', 'schedules'].includes(ui.current))) return;
     checking = true;
     try {
       const info = ZF.wa.qs(ZF.wa.SEL.main) ? await ZF.wa.activeChatInfo() : null;

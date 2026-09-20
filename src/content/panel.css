@@ -248,6 +248,13 @@ svg { flex-shrink: 0; }
 .zf-preview .zf-file { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 4px 0; }
 .zf-preview .zf-sep { border-top: 1px solid var(--border); margin: 6px 0; }
 
+/* barra "de quem são estes agendamentos" */
+.zf-scope {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px; padding: 5px 5px 5px 10px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 13px; font-weight: 600;
+}
+.zf-scope > svg { color: var(--muted); }
+
 .zf-empty { text-align: center; color: var(--muted); padding: 28px 12px; font-size: 13.5px; }
 .zf-empty .zf-btn { margin-top: 12px; }
 

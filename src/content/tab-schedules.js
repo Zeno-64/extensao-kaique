@@ -16,12 +16,21 @@
   const STATUS = { pending: 'Agendado', paused: 'Pausado', sent: 'Enviado', failed: 'Falhou', missed: 'Perdido' };
 
   let schedules = [];
+  let showAll = false; // por padrao mostra so os da conversa aberta
   store.onChange(['schedules'], async () => {
     schedules = await store.get('schedules');
     ui.rerender('schedules');
   });
+  ZF.on('activechat', () => { if (ui.current === 'schedules') ui.rerender('schedules'); });
 
   const targetLabel = (t) => t.name || ZF.fmtPhone(t.phone) || 'Conversa';
+  const activeInfo = () => (ZF.activeChat && ZF.activeChat.info) || null;
+  /** O agendamento e para a conversa aberta? (compara pelo id da conversa ou pelo telefone) */
+  const sameTarget = (t, info) => {
+    if (!t || !info) return false;
+    if (t.chatId && info.chatId && t.chatId === info.chatId) return true;
+    return !!(t.phone && info.phone && ZF.onlyDigits(t.phone) === ZF.onlyDigits(info.phone));
+  };
 
   /* ---------------- editor ---------------- */
   async function openScheduleEditor(sched = null, defaults = {}) {
@@ -220,14 +229,27 @@
     store.get('schedules').then((list) => {
       if (JSON.stringify(list) !== JSON.stringify(schedules)) { schedules = list; ui.rerender('schedules'); }
     });
-    const upcoming = schedules.filter((s) => ['pending', 'paused'].includes(s.status)).sort((a, b) => a.sendAt - b.sendAt);
-    const history = schedules.filter((s) => !['pending', 'paused'].includes(s.status))
+    if (ZF.activeChat && !ZF.activeChat.checked && ZF.checkActiveChat) setTimeout(() => ZF.checkActiveChat(true), 0);
+    const info = activeInfo();
+    const scoped = !!info && !showAll;
+    const list = scoped ? schedules.filter((s) => sameTarget(s.target, info)) : schedules;
+    const upcoming = list.filter((s) => ['pending', 'paused'].includes(s.status)).sort((a, b) => a.sendAt - b.sendAt);
+    const history = list.filter((s) => !['pending', 'paused'].includes(s.status))
       .sort((a, b) => (b.lastRunAt || b.sendAt) - (a.lastRunAt || a.sendAt)).slice(0, 60);
+    const others = schedules.length - list.length;
 
     ZF.append(body, 
-      h('button', { class: 'zf-btn primary block', style: { marginBottom: '6px' }, onclick: ui.safe(() => openScheduleEditor(null, { useActiveChat: !!ZF.wa.getCompose() })) }, icon('plus', 16), 'Novo agendamento'),
+      h('button', { class: 'zf-btn primary block', style: { marginBottom: '8px' }, onclick: ui.safe(() => openScheduleEditor(null, { useActiveChat: !!ZF.wa.getCompose() })) }, icon('plus', 16), 'Novo agendamento'),
+      // a tela abre mostrando so o que esta agendado para a conversa aberta
+      info ? h('div', { class: 'zf-scope' },
+        icon(info.isGroup ? 'users' : 'user', 15),
+        h('span', { class: 'zf-grow zf-ellipsis' }, scoped ? targetLabel(info) : 'Todas as conversas'),
+        h('button', {
+          class: 'zf-btn sm', title: scoped ? 'Mostrar os agendamentos de todas as conversas' : 'Mostrar só os desta conversa',
+          onclick: () => { showAll = !showAll; ui.rerender('schedules'); },
+        }, icon('eye', 13), scoped ? `Exibir todos${others ? ` (${others})` : ''}` : 'Só desta conversa')) : null,
       h('div', { class: 'zf-h3' }, `Próximos (${upcoming.length})`),
-      upcoming.length ? upcoming.map(card) : h('div', { class: 'zf-empty' }, 'Nenhuma mensagem agendada.'),
+      upcoming.length ? upcoming.map(card) : h('div', { class: 'zf-empty' }, scoped ? 'Nada agendado para esta conversa.' : 'Nenhuma mensagem agendada.'),
     );
     if (history.length) {
       ZF.append(body, 

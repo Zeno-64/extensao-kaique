@@ -18,8 +18,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 | ✨ | Assistente de IA |
 | 📦 | Quadro de atendimento: arraste as conversas entre as abas |
 | 👤 | Contato: abas e etiquetas da conversa aberta |
-| 🗓⏰ | Mensagens agendadas |
-| 📅 | Evento no Google Agenda para a conversa aberta |
+| 🗓⏰ | Mensagens agendadas **da conversa aberta** (com "Exibir todos") |
 | 📝 | Notas |
 | ⏰ | Lembretes |
 | ⚡ | Abre ou fecha o painel |
