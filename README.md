@@ -21,7 +21,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 | 🗓⏰ | Abre a **janela de mensagens agendadas** (fora do painel): tabela com o que está agendado para a conversa aberta — mensagem, cliente, data, hora, recorrência, status — com enviar agora, pausar, editar e excluir. "Exibir todos" passa a listar os agendamentos de todos os contatos, e "Adicionar" cria um novo |
 | 📝 | Notas |
 | ⏰ | Lembretes |
-| ⚡ | Abre ou fecha o painel |
+| ⚡ | **Respostas rápidas** (abre o painel nelas; clicando de novo, fecha) |
 
 **Painel** (abas no topo do painel):
 

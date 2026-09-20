@@ -26,7 +26,7 @@
     { key: 'schedules', icon: 'calendarClock', title: 'Mensagens agendadas da conversa', run: () => ZF.openSchedulesWindow() },
     { key: 'notes', icon: 'clipboardEdit', title: 'Notas', view: 'notes' },
     { key: 'reminders', icon: 'alarm', title: 'Lembretes', view: 'reminders' },
-    { key: 'panel', icon: 'zap', title: 'Abrir o painel do ZapFlow', run: () => ui.toggle() },
+    { key: 'replies', icon: 'zap', title: 'Respostas rápidas', view: 'replies' },
   ];
   // Folga entre os botões flutuantes e as bordas da área do WhatsApp
   const DOCK_GAP = 8;
@@ -278,7 +278,7 @@
       ui.dockBtns[d.key] = b;
       items.appendChild(b);
     });
-    // o botão azul só sobe/desce as opções; o painel abre pelo botão "Abrir o painel" (ou pela barra da esquerda)
+    // o botão azul só sobe/desce as opções; o painel abre por um dos botões (ex.: o raio das respostas rápidas) ou pela barra da esquerda
     const logo = h('button', { class: 'zf-dock-logo', 'aria-label': 'Opções do ZapFlow', onclick: () => ui.toggleDock() },
       h('span', { class: 'zf-dock-ico' }, icon('logo', 22)),
       h('span', { class: 'zf-dock-ico zf-dock-ico-x' }, icon('x', 20)),
