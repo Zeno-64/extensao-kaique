@@ -517,7 +517,6 @@
       h('div', { class: 'zf-cat-h', onclick: toggle },
         icon('shapes', 16, 'zf-cat-ico'),
         h('span', { class: 'zf-cat-name' }, cat ? cat.name : 'Sem categoria'),
-        h('span', { class: 'zf-count' }, replies.length),
         cat ? h('button', {
           class: 'zf-iconbtn zf-cat-more', title: 'Opções da categoria',
           onclick: (e) => { e.stopPropagation(); categoryMenu(cat, e.currentTarget); },

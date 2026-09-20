@@ -4,8 +4,11 @@
     {
       "name": "harness",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["dev/server.mjs"],
-      "port": 5178
+      "runtimeArgs": [
+        "dev/server.mjs"
+      ],
+      "port": 5178,
+      "autoPort": true
     }
   ]
 }

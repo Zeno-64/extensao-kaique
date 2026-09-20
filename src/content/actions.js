@@ -192,7 +192,21 @@
       default: return [];
     }
   };
-  ZF.actionsToBlocks = (actions = []) => actions.flatMap((a) => (TYPES[a.type] && TYPES[a.type].msg ? ZF.actionToBlocks(a) : []));
+  /** Segundos de "digitando…" e de espera guardados na própria ação de mensagem */
+  ZF.actionPace = (a) => ({
+    typing: Math.max(0, Math.min(120, Number(a && a.typingSeconds) || 0)),
+    after: Math.max(0, Math.min(3600, Number(a && a.afterSeconds) || 0)),
+  });
+  /** Leva o "digitando…" e a espera da ação para os blocos (primeiro e último) */
+  ZF.paceBlocks = (a, blocks) => {
+    const { typing, after } = ZF.actionPace(a);
+    if (!blocks.length || (!typing && !after)) return blocks;
+    const out = blocks.map((b) => ({ ...b }));
+    if (typing) out[0].typingSeconds = typing;
+    if (after) out[out.length - 1].afterSeconds = after;
+    return out;
+  };
+  ZF.actionsToBlocks = (actions = []) => actions.flatMap((a) => (TYPES[a.type] && TYPES[a.type].msg ? ZF.paceBlocks(a, ZF.actionToBlocks(a)) : []));
 
   /** Blocos antigos (v1.0/v1.1) → ações */
   ZF.blocksToActions = (blocks = []) => blocks.map((b) => {
@@ -260,6 +274,12 @@
   const cut = (s, n = 70) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
   /** Resumo de uma linha. names: { tab(id), label(id), reply(id) } */
   ZF.actionSummary = (a, names = {}) => {
+    const base = summaryOf(a, names);
+    const { typing, after } = ZF.actionPace(a);
+    const extra = [typing ? `digitando ${typing}s` : '', after ? `espera ${after}s` : ''].filter(Boolean).join(', ');
+    return extra ? `${base} • ${extra}` : base;
+  };
+  const summaryOf = (a, names = {}) => {
     const tab = (id) => (names.tab && names.tab(id)) || 'escolha a aba';
     switch (a.type) {
       case 'text': return cut(a.text) || 'Mensagem vazia';
@@ -340,8 +360,9 @@
       try {
         if (def.msg) {
           if (lastWasMsg) await ZF.sleep(ZF.rand(700, 1400));
-          await send(target, ZF.actionToBlocks(a), isOpen);
-          lastWasMsg = true;
+          // o "digitando…" e a espera desta ação viajam nos blocos (quem cumpre é o envio)
+          await send(target, ZF.paceBlocks(a, ZF.actionToBlocks(a)), isOpen);
+          lastWasMsg = !ZF.actionPace(a).after;
           continue;
         }
         lastWasMsg = false;

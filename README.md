@@ -59,7 +59,8 @@ Uma resposta rápida é uma **sequência de ações**, executadas em ordem pelo 
 | **Utilitários** | Agendar mensagem de retorno, criar lembrete, adicionar nota, evento no Google Agenda, marcar como não lida, arquivar, fixar |
 | **Transferir Atendimento** | Avisa o cliente, manda os dados dele para o WhatsApp do atendente e move para uma aba. "Finalizar atendimento": despedida, sai das abas, marca como lida e arquiva (opcional) |
 
-- Cada categoria é um **cartão colorido** que abre e fecha; dentro dele cada resposta é uma linha com o ícone do tipo e os três botões sempre à mostra.
+- Cada ação de mensagem tem o **ritmo** dela: *"Exibir para o cliente que a mensagem está sendo digitada por N segundos"* (mostra "digitando…"/"gravando áudio…" antes de enviar) e *"Aguarde para chamar a próxima ação por N segundos"*. Com 0 segundos nada muda. Vale também quando a resposta vira agendamento ou disparo em massa.
+- Cada categoria é um **cartão colorido** que abre e fecha; dentro dele cada resposta é uma linha com o ícone do tipo e os três botões (**•••**, 👁, ➤) sempre à mostra.
 - **Clique** no título: coloca o texto no campo para revisar. **➤**: executa tudo. **👁**: mostra as ações. **•••**: editar, duplicar, mover, agendar, usar em disparo, excluir.
 - **#Tags** insere variáveis no campo selecionado.
 - **Scripts**: sequência de respostas rápidas (ex.: boas-vindas → valores → agendamento). Dá para enviar etapa por etapa ou todas, com intervalo entre elas.
@@ -127,7 +128,7 @@ Na hora marcada aparece um **alerta na tela** e uma **notificação do Windows**
 ### Disparos em massa
 1. **Destinatários**: cole a lista, importe uma **planilha (.xlsx ou .csv)** ou use **Do WhatsApp** → conversas, grupos (envia no grupo), participantes de grupos, etiquetas do WhatsApp ou abas do CRM. Repetidos são ignorados.
 2. **Mensagem**: escreva ou carregue uma resposta rápida (as mensagens dela entram; automações ficam de fora).
-3. **Ritmo**: intervalo aleatório entre mensagens e pausas longas.
+3. **Ritmo**: **Intervalo(s)** — um tempo sorteado entre o menor e o maior (iguais = intervalo fixo) — e pausas longas.
 4. **Iniciar** (ou agendar o início). Acompanhe, pause, retome, baixe o relatório e reenvie as falhas.
 
 > ⚠️ **Risco de bloqueio**: envio em massa pode fazer o WhatsApp restringir o número. Envie só para quem conhece você, use intervalos longos (15–60 s), pausas e varie o texto com `{a|b}`.

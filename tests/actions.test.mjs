@@ -65,6 +65,13 @@ eq('convite grupo', ZF.actionToBlocks({ type: 'group_invite', link: 'https://cha
 eq('figurinha/documento', plain(ZF.actionToBlocks({ type: 'sticker', fileId: 'f', name: 'a.png', mime: 'image/png', size: 1 })).concat(plain(ZF.actionToBlocks({ type: 'document', fileId: 'g', name: 'b.png', mime: 'image/png', size: 2, caption: 'c' }))),
   [{ type: 'file', fileId: 'f', name: 'a.png', mime: 'image/png', size: 1, caption: '', asSticker: true }, { type: 'file', fileId: 'g', name: 'b.png', mime: 'image/png', size: 2, caption: 'c', asDocument: true }]);
 eq('ações sem mensagem não viram blocos', ZF.actionsToBlocks([{ type: 'wait', seconds: 3 }, { type: 'crm_add', tabId: 't' }, { type: 'text', text: 'oi' }]).length, 1);
+// ritmo da mensagem: "digitando…" no primeiro bloco e espera no último
+const paced = plain(ZF.actionsToBlocks([{ type: 'pix', keyType: 'cpf', key: '12345678909', name: 'A', city: 'SP', typingSeconds: 4, afterSeconds: 9 }]));
+eq('digitando no primeiro bloco', [paced.length, paced[0].typingSeconds, paced[0].afterSeconds], [2, 4, undefined]);
+eq('espera no último bloco', [paced[1].afterSeconds, paced[1].typingSeconds], [9, undefined]);
+eq('sem ritmo, bloco limpo', plain(ZF.actionsToBlocks([{ type: 'text', text: 'oi' }])), [{ type: 'text', text: 'oi' }]);
+eq('ritmo fora do limite', ZF.actionPace({ typingSeconds: 999, afterSeconds: -5 }), { typing: 120, after: 0 });
+eq('resumo mostra o ritmo', ZF.actionSummary({ type: 'text', text: 'oi', typingSeconds: 3, afterSeconds: 2 }), 'oi • digitando 3s, espera 2s');
 
 /* ---------------- migração (v1.1 → v1.2) ---------------- */
 const old = { id: 'r1', title: 'CC', categoryId: 'c1', uses: 2, blocks: [

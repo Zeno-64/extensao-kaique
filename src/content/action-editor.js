@@ -68,6 +68,20 @@
       el.addEventListener('input', () => { a[key] = Math.max(min, Math.min(max, Number(el.value) || min)); refreshSummary(a); });
       return el;
     };
+    /** Campo numérico curto que aceita 0 (usado no ritmo das mensagens) */
+    const smallNum = (a, key, min, max, def = 0) => {
+      const el = h('input', { class: 'zf-input zf-pace-n', type: 'number', min, max, value: a[key] == null ? def : a[key] });
+      el.addEventListener('input', () => { a[key] = Math.max(min, Math.min(max, Number(el.value) || 0)); refreshSummary(a); });
+      return el;
+    };
+    /**
+     * Ritmo da mensagem, igual ao WaSpeed: "digitando…" antes e espera depois.
+     * where = 'typing' (em cima do campo) | 'after' (embaixo).
+     */
+    const pace = (a, where) => (where === 'typing'
+      ? h('div', { class: 'zf-pace' }, h('span', {}, 'Exibir para o cliente que a mensagem está sendo digitada por'), smallNum(a, 'typingSeconds', 0, 120), h('span', {}, 'Segundos'))
+      : h('div', { class: 'zf-pace' }, h('span', {}, 'Aguarde para chamar a próxima ação por'), smallNum(a, 'afterSeconds', 0, 3600), h('span', {}, 'Segundos')));
+
     const hint = (text) => h('div', { class: 'zf-hint' }, text);
     const field = (label, control, help) => ui.field(label, control, help);
 
@@ -326,7 +340,12 @@
           h('button', { class: 'zf-iconbtn', title: 'Remover ação', onclick: stop(() => { actions.splice(i, 1); render(); }) }, icon('trash', 14)),
           icon(isOpen ? 'chevronUp' : 'chevronDown', 16, 'zf-muted'));
         const item = h('div', { class: 'zf-act' + (def.danger ? ' danger' : '') + (isOpen ? ' open' : ''), dataset: { id: a.id } }, head);
-        if (isOpen) item.appendChild(h('div', { class: 'zf-act-b' }, (EDITORS[a.type] || (() => [hint('Tipo de ação desconhecido.')]))(a)));
+        if (isOpen) {
+          const body = (EDITORS[a.type] || (() => [hint('Tipo de ação desconhecido.')]))(a);
+          // ações de mensagem ganham o ritmo do WaSpeed: "digitando…" em cima, espera embaixo
+          item.appendChild(h('div', { class: 'zf-act-b' + (def.msg ? ' zf-act-msg' : '') },
+            def.msg ? pace(a, 'typing') : null, body, def.msg ? pace(a, 'after') : null));
+        }
         list.appendChild(item);
       });
     }

@@ -85,19 +85,27 @@
     let editor;
     const editorWrap = h('div');
 
+    // a lista fica aberta enquanto o usuário mexe nela: lembramos o estado e a rolagem
+    let pickedOpen = false;
     const renderPicked = () => {
+      const prevScroll = pickedEl.querySelector('.zf-contacts')?.scrollTop || 0;
       pickedEl.replaceChildren();
       if (!picked.length) return;
       const groups = picked.filter((p) => p.isGroup).length;
-      ZF.append(pickedEl, h('details', { style: { margin: '8px 0 0' } },
+      const listEl = h('div', { class: 'zf-contacts', style: { marginTop: '6px', maxHeight: '200px' } }, picked.map((p, i) => h('div', { class: 'zf-contact' },
+        icon(p.isGroup ? 'users' : 'user', 13),
+        h('span', { class: 'zf-grow' }, p.name || ZF.fmtPhone(p.phone) || p.chatId),
+        h('span', { class: 'zf-muted zf-small' }, p.isGroup ? 'Grupo' : ZF.fmtPhone(p.phone)),
+        h('button', { class: 'zf-iconbtn', title: 'Remover', onclick: (e) => { e.preventDefault(); picked.splice(i, 1); renderPicked(); renderSummary(); } }, icon('x', 13)))));
+      ZF.append(pickedEl, h('details', {
+        style: { margin: '8px 0 0' }, open: pickedOpen,
+        ontoggle: (e) => { pickedOpen = e.currentTarget.open; },
+      },
         h('summary', { style: { cursor: 'pointer', fontSize: '12.5px', fontWeight: 700 } },
           `Escolhidos do WhatsApp: ${picked.length}${groups ? ` (${groups} grupo(s))` : ''}`),
-        h('div', { class: 'zf-contacts', style: { marginTop: '6px', maxHeight: '200px' } }, picked.map((p, i) => h('div', { class: 'zf-contact' },
-          icon(p.isGroup ? 'users' : 'user', 13),
-          h('span', { class: 'zf-grow' }, p.name || ZF.fmtPhone(p.phone) || p.chatId),
-          h('span', { class: 'zf-muted zf-small' }, p.isGroup ? 'Grupo' : ZF.fmtPhone(p.phone)),
-          h('button', { class: 'zf-iconbtn', title: 'Remover', onclick: (e) => { e.preventDefault(); picked.splice(i, 1); renderPicked(); renderSummary(); } }, icon('x', 13))))),
+        listEl,
         h('button', { class: 'zf-btn sm', style: { marginTop: '6px' }, onclick: (e) => { e.preventDefault(); picked = []; renderPicked(); renderSummary(); } }, 'Remover todos')));
+      listEl.scrollTop = prevScroll;
     };
     const addPicked = (items, source) => {
       const n = (items || []).filter(addPickedItem).length;
@@ -184,8 +192,8 @@
       return list.map((t) => ({ label: t.name, icon: 'folderArrow', count: ZF.crm.countInTab(t.id), onClick: () => addPicked(ZF.crm.chatsInTab(t.id), t.name) }));
     }
 
-    const minD = ui.input({ type: 'number', min: 3, value: cfg.minDelay });
-    const maxD = ui.input({ type: 'number', min: 3, value: cfg.maxDelay });
+    const minD = ui.input({ type: 'number', min: 3, value: cfg.minDelay, style: { width: '84px' } });
+    const maxD = ui.input({ type: 'number', min: 3, value: cfg.maxDelay, style: { width: '84px' } });
     const pEvery = ui.input({ type: 'number', min: 0, value: cfg.pauseEvery });
     const pMin = ui.input({ type: 'number', min: 0, value: cfg.pauseMinutes });
     [minD, maxD, pEvery, pMin].forEach((i) => i.addEventListener('input', renderSummary));
@@ -269,7 +277,8 @@
         editorWrap),
       h('div', { class: 'zf-section' },
         h('div', { class: 'zf-h3' }, 'Ritmo de envio'),
-        h('div', { class: 'zf-grid2' }, ui.field('Intervalo mínimo (s)', minD), ui.field('Intervalo máximo (s)', maxD)),
+        ui.field('Intervalo(s)', h('div', { class: 'zf-row', style: { gap: '8px' } }, minD, h('span', { class: 'zf-small' }, 'a'), maxD),
+          'Cada envio espera um tempo sorteado entre os dois. Iguais = intervalo fixo.'),
         h('div', { class: 'zf-grid2' }, ui.field('Pausa longa a cada (msgs)', pEvery), ui.field('Duração da pausa (min)', pMin)),
         ui.field('Início', h('div', {}, startMode, startAt))),
       h('div', { class: 'zf-note' }, icon('alert', 16), h('span', {},

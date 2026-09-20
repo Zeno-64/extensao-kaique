@@ -214,12 +214,7 @@ svg { flex-shrink: 0; }
 .zf-cat-ico { color: var(--cat-dot); flex: none; }
 .zf-cat-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cat-dot); flex: none; }
 .zf-cat-h .zf-cat-name { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.zf-cat-h .zf-count {
-  font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg);
-  border-radius: 999px; padding: 1px 7px; flex: none;
-}
-.zf-cat-h .zf-cat-more { opacity: 0; width: 26px; height: 26px; }
-.zf-cat-h:hover .zf-cat-more, .zf-cat-h:focus-within .zf-cat-more { opacity: 1; }
+.zf-cat-h .zf-cat-more { width: 26px; height: 26px; }
 .zf-cat-caret { color: var(--muted); transition: transform .15s ease; flex: none; }
 .zf-cat.collapsed .zf-cat-caret { transform: rotate(180deg); }
 .zf-cat-body { display: flex; flex-direction: column; gap: 3px; padding: 6px; }
@@ -608,6 +603,14 @@ svg { flex-shrink: 0; }
 .zf-act-sum { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .zf-act-b { padding: 4px 12px 12px; }
 .zf-act-b > .zf-textarea { background: var(--bg); }
+/* ritmo da mensagem: "digitando…" antes e espera depois (como no WaSpeed) */
+.zf-pace {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--muted); margin: 6px 0;
+}
+.zf-pace .zf-pace-n { width: 62px; padding: 4px 8px; text-align: center; font-weight: 700; color: var(--text); }
+.zf-act-msg { background: var(--accent-soft); border-radius: 0 0 9px 9px; }
+.zf-act-msg .zf-pace { color: var(--text); }
 .zf-thumb { width: 40px; height: 40px; border-radius: 6px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; flex-shrink: 0; color: var(--muted); }
 .zf-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .zf-step { display: flex; align-items: center; gap: 6px; padding: 3px 0; }

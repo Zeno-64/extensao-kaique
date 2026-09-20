@@ -374,7 +374,9 @@
     if (!list.length) throw ZF.userError('Mensagem vazia');
     for (let i = 0; i < list.length; i++) {
       await sendBlockUI(list[i]);
-      if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
+      const after = Math.max(0, Math.min(3600, Number(b.afterSeconds) || 0));
+      if (after) await sleep(after * 1000);
+      else if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
     }
   }
 
@@ -519,9 +521,17 @@
     if (!list.length) throw ZF.userError('Mensagem vazia');
     // isOpen: o destino já é a conversa aberta — o caminho pela interface não precisa abrir nada
     let ui = isOpen ? { prevChat: null } : null;
+    const presence = (state) => bridge('presence', { chatId: target.chatId || undefined, phone: target.phone || undefined, state }, 5000);
     for (let i = 0; i < list.length; i++) {
       const b = list[i];
       let sent = false;
+      // "digitando…" (ou "gravando áudio…") antes de mandar, do jeito que a ação pediu
+      const typing = Math.max(0, Math.min(120, Number(b.typingSeconds) || 0));
+      if (typing) {
+        const pr = await presence(b.asVoice ? 'recording' : 'composing');
+        await sleep(typing * 1000);
+        if (pr && pr.ok) await presence('paused');
+      }
       if (settings.directSend !== false) {
         const r = await sendDirect(target, b);
         if (r.ok) sent = true;
@@ -541,7 +551,9 @@
         }
         await sendBlockUI(b);
       }
-      if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
+      const after = Math.max(0, Math.min(3600, Number(b.afterSeconds) || 0));
+      if (after) await sleep(after * 1000);
+      else if (i < list.length - 1) await sleep(ZF.rand(900, 1800));
     }
     return { ok: true, usedUi: !!(ui && ui.prevChat), prevChat: ui ? ui.prevChat : null };
   }

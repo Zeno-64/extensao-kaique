@@ -132,6 +132,8 @@
       'html.zapflow-rail #app{left:var(--zapflow-rail,56px)!important;width:calc(100% - var(--zapflow-rail,56px))!important;min-width:0!important;}',
       'html.zapflow-rail.zapflow-push #app{width:calc(100% - var(--zapflow-w,380px) - var(--zapflow-rail,56px))!important;}',
       'html.zapflow-bar #app{top:var(--zapflow-bar-h,40px)!important;height:calc(100% - var(--zapflow-bar-h,40px))!important;min-height:0!important;}',
+      // os contêineres de dentro não podem esticar além do #app já encolhido
+      'html.zapflow-push #app>div,html.zapflow-rail #app>div{min-width:0!important;max-width:100%!important;}',
     ].join('\n');
     (document.head || document.documentElement).appendChild(layout);
 
@@ -170,6 +172,10 @@
     ui.updateBadges();
     ZF.every(30000, ui.updateBadges);
 
+    // o WhatsApp remonta a tela sozinho; conferimos de tempos em tempos
+    ZF.every(1500, () => ui.squeezeApp());
+    window.addEventListener('resize', () => ui.squeezeApp());
+
     ZF.on('runner', (st) => ui.renderStatus(st));
     ZF.every(1000, () => ui.renderStatus(ZF.runner && ZF.runner.state));
   };
@@ -183,6 +189,7 @@
     if (ui.dock) ui.dock.style.display = s.dock === false ? 'none' : '';
     if (ui.launcher) ui.launcher.style.display = s.dock === false && !ui.open ? '' : 'none';
     ui.applyRail(s);
+    ui.squeezeApp();
     ui.placeDock(s);
     if (ui.syncTheme) ui.syncTheme();
     ZF.emit('settings', s);
@@ -458,6 +465,33 @@
     ui.wrap.appendChild(ui.rail);
   };
   /** Mostra a barra (e empurra o WhatsApp para a direita) só com o WhatsApp carregado */
+  /**
+   * Confere se o WhatsApp encolheu de verdade. Quando ele usa um contêiner
+   * preso na tela (position: fixed), a largura do #app é ignorada e o painel
+   * acaba por cima da conversa — aí acertamos esse contêiner na unha.
+   */
+  const squeezed = new Set();
+  ui.squeezeApp = () => {
+    const app = document.querySelector('#app');
+    if (!app) return;
+    const root = document.documentElement;
+    if (!root.classList.contains('zapflow-push') && !root.classList.contains('zapflow-rail')) {
+      squeezed.forEach((el) => { el.style.removeProperty('position'); el.style.removeProperty('width'); el.style.removeProperty('min-width'); });
+      squeezed.clear();
+      return;
+    }
+    const want = app.getBoundingClientRect().width;
+    if (want < 200) return;
+    for (let el = app.firstElementChild, d = 0; el && d < 3; el = el.firstElementChild, d++) {
+      const fixed = getComputedStyle(el).position === 'fixed';
+      if (!fixed && el.getBoundingClientRect().width <= want + 1) continue;
+      if (fixed) el.style.setProperty('position', 'absolute', 'important');
+      el.style.setProperty('width', '100%', 'important');
+      el.style.setProperty('min-width', '0', 'important');
+      squeezed.add(el);
+    }
+  };
+
   ui.applyRail = (s = ui.settings || {}) => {
     if (!ui.rail) return;
     const show = s.rail !== false && !!(ZF.wa && ZF.wa.isReady());

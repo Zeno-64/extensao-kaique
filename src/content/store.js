@@ -5,7 +5,8 @@
 
   const DEFAULT_SETTINGS = {
     panelOpen: true,
-    pushLayout: true,
+    pushLayout: true, // o painel empurra o WhatsApp para o lado em vez de ficar por cima
+    pushChecked: false, // v1.8: conferimos uma vez se o "empurrar" estava ligado
     panelWidth: 380,
     clickAction: 'insert', // 'insert' | 'send'
     countryCode: '55',
@@ -259,6 +260,11 @@
       // v1.7: os botões flutuantes passaram a nascer no canto de baixo da conversa, acima da barra de digitação
       if (settings && settings.dockPlaced === undefined) {
         await store.saveSettings({ dockPlaced: false, dockSide: 'left', dockX: null, dockBottom: null });
+        changed = true;
+      }
+      // v1.8: o painel não pode ficar por cima da conversa; religa o "empurrar" uma vez só
+      if (settings && settings.pushChecked === undefined) {
+        await store.saveSettings({ pushLayout: true, pushChecked: true });
         changed = true;
       }
       return changed;
