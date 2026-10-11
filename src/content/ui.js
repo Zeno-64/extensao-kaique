@@ -30,6 +30,7 @@
   ];
   // Folga entre os botões flutuantes e as bordas da área do WhatsApp
   const DOCK_GAP = 8;
+  const SNAP_PX = 60; // distância do canto da conversa em que o botão flutuante encaixa
 
   // Barra fixa à esquerda do WhatsApp (atalhos gerais, como no WaSpeed)
   const RAIL = [
@@ -407,9 +408,13 @@
       const bottom = Math.max(DOCK_GAP, Math.round(window.innerHeight - r.bottom));
       dock.classList.remove('dragging');
       ['left', 'top', 'right'].forEach((k) => (dock.style[k] = ''));
-      ui.settings = { ...(ui.settings || {}), dockSide: side, dockX: x, dockBottom: bottom, dockPlaced: true };
+      // solto perto do canto de baixo da conversa: encaixa nele e passa a acompanhar a conversa (como no lado direito)
+      const c = chatCorner();
+      const snap = side === 'left' && c && Math.abs(r.left - (c.left + DOCK_GAP)) < SNAP_PX && Math.abs(bottom - (c.bottom + DOCK_GAP)) < SNAP_PX * 2;
+      const next = snap ? { dockSide: 'left', dockX: null, dockBottom: null, dockPlaced: false } : { dockSide: side, dockX: x, dockBottom: bottom, dockPlaced: true };
+      ui.settings = { ...(ui.settings || {}), ...next };
       ui.placeDock();
-      store.saveSettings({ dockSide: side, dockX: x, dockBottom: bottom, dockPlaced: true });
+      store.saveSettings(next);
     };
     dock.addEventListener('pointerup', end);
     dock.addEventListener('pointercancel', end);
