@@ -30,7 +30,6 @@
   ];
   // Folga entre os botões flutuantes e as bordas da área do WhatsApp
   const DOCK_GAP = 8;
-  const SNAP_PX = 60; // distância do canto da conversa em que o botão flutuante encaixa
 
   // Barra fixa à esquerda do WhatsApp (atalhos gerais, como no WaSpeed)
   const RAIL = [
@@ -283,13 +282,12 @@
     const logo = h('button', { class: 'zf-dock-logo', 'aria-label': 'Opções do ZapFlow', onclick: () => ui.toggleDock() },
       h('span', { class: 'zf-dock-ico' }, icon('logo', 22)),
       h('span', { class: 'zf-dock-ico zf-dock-ico-x' }, icon('x', 20)),
-      h('span', { class: 'zf-tip' }, 'ZapFlow — opções (arraste para mover)'));
+      h('span', { class: 'zf-tip' }, 'ZapFlow — opções'));
     ui.dockLogo = logo;
     ui.dock = h('div', { class: 'zf-dock zf-keep' }, items, logo);
     ui.dockOpen = false;
     try { localStorage.removeItem('zapflow-dock-collapsed'); } catch (e) { /* ignora */ }
     ui.wrap.appendChild(ui.dock);
-    enableDockDrag(ui.dock);
     // clicar em qualquer outro lugar (no WhatsApp ou no painel) desce as opções
     document.addEventListener('mousedown', (e) => {
       if (ui.dockOpen && !e.composedPath().includes(ui.dock)) ui.toggleDock(false);
@@ -334,95 +332,21 @@
   };
 
   /**
-   * Posição dos botões flutuantes: lado de referência (direita/esquerda da área do WhatsApp),
-   * distância até esse lado e altura. Ficam onde foram soltos.
+   * Posição dos botões flutuantes: fixos no canto de baixo à esquerda da conversa, logo acima da barra
+   * de digitação, com o painel aberto ou fechado. Sem conversa aberta, ficam no canto da tela.
    */
-  ui.placeDock = (s = ui.settings || {}) => {
+  ui.placeDock = () => {
     if (!ui.dock) return;
-    ui.wrap.classList.toggle('dock-left', s.dockSide === 'left');
-    // janela minimizada tem tamanho ~0: não limita (recalcula no próximo "resize")
+    ui.wrap.classList.add('dock-left');
     const sized = window.innerHeight > 200 && window.innerWidth > 300;
     const a = waArea();
-    // enquanto o usuário não arrastar, os botões ficam grudados no canto de baixo da conversa
-    const corner = s.dockPlaced ? null : chatCorner();
-    let x = Number.isFinite(Number(s.dockX)) && s.dockX != null ? Number(s.dockX) : DOCK_GAP;
-    if (corner) x = DOCK_GAP + Math.max(0, Math.round(s.dockSide === 'left' ? corner.left - a.left : a.right - corner.right));
+    const corner = chatCorner();
+    let x = DOCK_GAP + (corner ? Math.max(0, Math.round(corner.left - a.left)) : 0);
     if (sized) x = Math.min(Math.max(DOCK_GAP, x), Math.max(DOCK_GAP, a.right - a.left - ui.dock.offsetWidth - DOCK_GAP));
     ui.wrap.style.setProperty('--dock-x', Math.round(x) + 'px');
-    if (corner) {
-      ui.dock.style.bottom = Math.max(DOCK_GAP, Math.round(corner.bottom + DOCK_GAP)) + 'px';
-      return;
-    }
-    const b = Number(s.dockBottom);
-    if (s.dockBottom == null || !Number.isFinite(b)) { ui.dock.style.bottom = ''; return; }
-    // com as opções abertas a lista cresce para cima: não deixa passar da barra do topo
-    const max = sized ? Math.max(DOCK_GAP, window.innerHeight - ui.dock.offsetHeight - a.top - DOCK_GAP) : Infinity;
-    ui.dock.style.bottom = Math.round(Math.min(Math.max(DOCK_GAP, b), max)) + 'px';
+    ui.dock.style.bottom = corner ? Math.max(DOCK_GAP, Math.round(corner.bottom + DOCK_GAP)) + 'px' : '';
   };
 
-  /**
-   * Arrastar os botões flutuantes: segurar qualquer botão e mover. Ao soltar, ficam exatamente
-   * ali (guardando a distância até o lado mais próximo da área do WhatsApp). Um clique simples continua funcionando.
-   */
-  function enableDockDrag(dock) {
-    let start = null;
-    let dragging = false;
-    let draggedAt = 0;
-    const clamp = (v, min, max) => Math.min(Math.max(v, min), Math.max(min, max));
-    dock.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      start = { x: e.clientX, y: e.clientY, rect: dock.getBoundingClientRect(), id: e.pointerId };
-      dragging = false;
-    });
-    dock.addEventListener('pointermove', (e) => {
-      if (!start || e.pointerId !== start.id) return;
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      if (!dragging) {
-        if (Math.hypot(dx, dy) < 6) return;
-        dragging = true;
-        try { dock.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
-        dock.classList.add('dragging');
-        ui.closeMenu();
-      }
-      const r = start.rect;
-      const a = waArea();
-      // segura os botões dentro da área do WhatsApp (sem passar por cima da barra da esquerda,
-      // da barra do topo nem do painel aberto) — é onde eles vão ficar quando soltar
-      dock.style.left = clamp(r.left + dx, a.left + DOCK_GAP, a.right - r.width - DOCK_GAP) + 'px';
-      dock.style.top = clamp(r.top + dy, a.top + DOCK_GAP, window.innerHeight - r.height - DOCK_GAP) + 'px';
-      dock.style.right = 'auto';
-      dock.style.bottom = 'auto';
-    });
-    const end = () => {
-      if (!start) return;
-      const was = dragging;
-      start = null;
-      dragging = false;
-      if (!was) return;
-      draggedAt = Date.now();
-      const r = dock.getBoundingClientRect();
-      const a = waArea();
-      const side = r.left + r.width / 2 < (a.left + a.right) / 2 ? 'left' : 'right';
-      const x = Math.max(DOCK_GAP, Math.round(side === 'left' ? r.left - a.left : a.right - r.right));
-      const bottom = Math.max(DOCK_GAP, Math.round(window.innerHeight - r.bottom));
-      dock.classList.remove('dragging');
-      ['left', 'top', 'right'].forEach((k) => (dock.style[k] = ''));
-      // solto perto do canto de baixo da conversa: encaixa nele e passa a acompanhar a conversa (como no lado direito)
-      const c = chatCorner();
-      const snap = side === 'left' && c && Math.abs(r.left - (c.left + DOCK_GAP)) < SNAP_PX && Math.abs(bottom - (c.bottom + DOCK_GAP)) < SNAP_PX * 2;
-      const next = snap ? { dockSide: 'left', dockX: null, dockBottom: null, dockPlaced: false } : { dockSide: side, dockX: x, dockBottom: bottom, dockPlaced: true };
-      ui.settings = { ...(ui.settings || {}), ...next };
-      ui.placeDock();
-      store.saveSettings(next);
-    };
-    dock.addEventListener('pointerup', end);
-    dock.addEventListener('pointercancel', end);
-    // o clique que vem logo depois de arrastar não deve abrir nada
-    dock.addEventListener('click', (e) => {
-      if (Date.now() - draggedAt < 400) { e.stopPropagation(); e.preventDefault(); }
-    }, true);
-  }
   ui.renderDock = () => {
     DOCK.forEach((d) => {
       const b = ui.dockBtns[d.key];
