@@ -489,6 +489,12 @@
     return {
       el: card,
       get: () => mapText(ZF.clone(actions), fromHash),
+      /** Acrescenta ações (ex.: as de uma resposta rápida) ao final do script, com ids novos */
+      append: (list) => {
+        mapText(ZF.clone(list || []), toHash).forEach((a) => { const c = { ...a, id: ZF.uid() }; actions.push(c); open.add(c.id); });
+        reorder = false;
+        render();
+      },
       validate,
       add,
     };

@@ -147,7 +147,10 @@
   async function runJob(job) {
     const label = job.target.name || ZF.fmtPhone(job.target.phone) || 'contato';
     setState('sending', `Enviando para ${label}…`, { kind: job.kind, refId: job.refId });
-    const settings = await store.settings();
+    let settings = await store.settings();
+    // "Envio Rápido": a campanha pode desligar a assinatura ou usar outro nome
+    if (job.noSignature) settings = { ...settings, signature: false };
+    else if (job.signatureName) settings = { ...settings, signature: true, signatureCustom: true, signatureName: job.signatureName };
     job.rendered = ZF.renderBlocks(job.blocks, job.vars, false);
 
     await saveCurrent({ job, phase: 'sending', startedAt: Date.now() });
@@ -282,7 +285,7 @@
     const target = contact.chatId
       ? { type: 'chat', chatId: contact.chatId, phone: contact.phone || null, name: contact.name }
       : { type: 'phone', phone: contact.phone, name: contact.name };
-    await runJob({ kind: 'campaign', refId: c.id, index: idx, target, blocks: c.blocks, vars });
+    await runJob({ kind: 'campaign', refId: c.id, index: idx, target, blocks: c.blocks, vars, noSignature: c.noSignature, signatureName: c.signatureName });
     return true;
   }
 

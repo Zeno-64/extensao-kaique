@@ -34,7 +34,7 @@
   // Barra fixa à esquerda do WhatsApp (atalhos gerais, como no WaSpeed)
   const RAIL = [
     { key: 'kanban', icon: 'kanban', title: 'CRM — quadro de atendimento', run: () => ZF.topbar && ZF.topbar.openKanban() },
-    { key: 'bulk', icon: 'send', title: 'Envio em massa', view: 'bulk' },
+    { key: 'bulk', icon: 'send', title: 'Envio em massa (Envio Rápido)', run: () => ZF.openQuickSend() },
     { key: 'ai', icon: 'sparkles', title: 'Assistente IA', view: 'ai' },
     { key: 'schedules', icon: 'calendar', title: 'Agendamentos', view: 'schedules' },
     { key: 'replies', icon: 'zap', title: 'Respostas rápidas', view: 'replies' },
@@ -320,6 +320,7 @@
     if (!r || r.width < 200 || r.height < 200) return null;
     const foot = main.querySelector('footer');
     const fr = foot && foot.getBoundingClientRect();
+    if (!fr || fr.height < 20) return null; // #main existe até na tela vazia ("Ligações"): sem campo de mensagem não há conversa aberta
     const overFooter = fr && fr.height > 20 && fr.top > r.top;
     return { left: r.left, right: r.right, bottom: window.innerHeight - (overFooter ? fr.top : r.bottom) };
   };
@@ -333,7 +334,7 @@
 
   /**
    * Posição dos botões flutuantes: fixos no canto de baixo à esquerda da conversa, logo acima da barra
-   * de digitação, com o painel aberto ou fechado. Sem conversa aberta, ficam no canto da tela.
+   * de digitação, com o painel aberto ou fechado. Sem conversa aberta, ficam escondidos.
    */
   ui.placeDock = () => {
     if (!ui.dock) return;
@@ -341,6 +342,7 @@
     const sized = window.innerHeight > 200 && window.innerWidth > 300;
     const a = waArea();
     const corner = chatCorner();
+    ui.dock.classList.toggle('zf-hidden', !corner); // sem conversa aberta o botão não aparece
     let x = DOCK_GAP + (corner ? Math.max(0, Math.round(corner.left - a.left)) : 0);
     if (sized) x = Math.min(Math.max(DOCK_GAP, x), Math.max(DOCK_GAP, a.right - a.left - ui.dock.offsetWidth - DOCK_GAP));
     ui.wrap.style.setProperty('--dock-x', Math.round(x) + 'px');

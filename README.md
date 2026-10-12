@@ -125,6 +125,9 @@ Os botões de Google Agenda abrem o formulário de novo evento **já preenchido*
 ### Lembretes
 Na hora marcada aparece um **alerta na tela** e uma **notificação do Windows** (com "Concluir" e "Adiar 10 min"). Clicar na notificação abre o WhatsApp na conversa vinculada. Funciona com o Chrome aberto.
 
+### Envio Rápido (disparo em massa em 3 passos)
+**Nova campanha** abre o Envio Rápido, em tela cheia, como no WaSpeed: **1) Selecione os contatos** (Contatos Salvos, Inbox, Etiquetas, Grupos, Contatos de grupos, abas do CRM ou planilha; os botões +200/-200/+100/-100/+10/-10 marcam e desmarcam de uma vez e dá para exportar em .xlsx), **2) Crie o script** (as mesmas ações das respostas rápidas; clique numa resposta à direita para inserir) e **3) acompanhe o envio** (total, enviados, erros e a tabela ao vivo). Antes de enviar, o ZapFlow pede o intervalo, a pausa, a assinatura e o aceite do termo de uso. Etiquetas e outras ações que não são mensagem não entram no envio em massa.
+
 ### Disparos em massa
 1. **Destinatários**: cole a lista, importe uma **planilha (.xlsx ou .csv)** ou use **Do WhatsApp** → conversas, grupos (envia no grupo), participantes de grupos, etiquetas do WhatsApp ou abas do CRM. Repetidos são ignorados.
 2. **Mensagem**: escreva ou carregue uma resposta rápida (as mensagens dela entram; automações ficam de fora).

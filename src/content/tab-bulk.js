@@ -41,6 +41,7 @@
   };
 
   ZF.openCampaignEditor = (camp = null, defaults = {}) => {
+    if (!camp) { ZF.openQuickSend(defaults); return; } // campanhas novas usam o Envio Rápido; o editor abaixo edita rascunhos
     view = { name: 'edit', camp, defaults };
     if (ui.current !== 'bulk') ui.setTab('bulk');
     else ui.rerender('bulk');
