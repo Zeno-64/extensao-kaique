@@ -26,10 +26,6 @@
     aiInstructions: '',
     aiLanguage: 'inglês',
     dock: true, // botões flutuantes na lateral do WhatsApp
-    dockSide: 'left', // lado de referência dos botões flutuantes: 'right' | 'left'
-    dockX: null, // distância até esse lado da área do WhatsApp, em px (null = canto da conversa; muda arrastando)
-    dockBottom: null, // distância da parte de baixo da tela, em px (null = logo acima da barra de digitação)
-    dockPlaced: false, // o usuário já arrastou os botões para algum lugar
     rail: true, // barra fixa à esquerda do WhatsApp (atalhos do ZapFlow)
     hideMonitor: false, // esconde a linha de status dos envios automáticos no painel
     signature: false, // assina as mensagens enviadas pelo ZapFlow com *Nome:*
@@ -254,11 +250,6 @@
       const { replies, settings } = await chrome.storage.local.get(['replies', 'settings']);
       if (Array.isArray(replies) && replies.some((r) => !Array.isArray(r.actions))) {
         await store.update('replies', (list) => list.map(ZF.migrateReply));
-        changed = true;
-      }
-      // v1.7: os botões flutuantes passaram a nascer no canto de baixo da conversa, acima da barra de digitação
-      if (settings && settings.dockPlaced === undefined) {
-        await store.saveSettings({ dockPlaced: false, dockSide: 'left', dockX: null, dockBottom: null });
         changed = true;
       }
       // v1.8: o disparo passou a ter um intervalo só (sem mínimo/máximo) e a pausa em segundos

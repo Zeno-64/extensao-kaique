@@ -40,9 +40,25 @@
    * Editor da lista de ações. Retorna { el, get(), validate() }.
    * validate() devolve a mensagem de erro da primeira ação incompleta (ou null).
    */
-  ui.actionsEditor = (initial = [], { title = 'Ação do Resposta Rápida' } = {}) => {
-    let actions = ZF.clone(initial || []).map((a) => ({ id: a.id || ZF.uid(), ...a }));
-    const open = new Set(actions.length <= 3 ? actions.map((a) => a.id) : []);
+  // Nos campos de texto as variáveis aparecem como #palavra (como no WaSpeed); salvas e enviadas continuam {variavel}
+  const HASH = { saudacao: 'periodo-dia', primeiro_nome: 'primeiroNome', nome: 'nome', telefone: 'telefone', numero: 'numero', data: 'data', hora: 'hora', dia_semana: 'dia-semana', amanha: 'amanha' };
+  const FROM_HASH = Object.fromEntries(Object.entries(HASH).map(([k, v]) => [v.toLowerCase(), k]));
+  const toHash = (s) => String(s).replace(/\{([a-z_]+)\}/g, (m, k) => (HASH[k] ? '#' + HASH[k] : m));
+  const fromHash = (s) => String(s).replace(/#(periodo-dia|primeiroNome|nome|telefone|numero|data|hora|dia-semana|amanha)(?![\w-])/gi, (m, k) => '{' + FROM_HASH[k.toLowerCase()] + '}');
+  const CARD_TITLE = {
+    text: 'Criar Mensagem de Texto', image: 'Criar Mensagem de Imagem', video: 'Criar Mensagem de Vídeo', audio: 'Criar Mensagem de Áudio',
+    document: 'Criar Mensagem de Documento', label_add: 'Selecione uma etiqueta para adicionar', label_remove: 'Selecione uma etiqueta para remover',
+  };
+  const mapText = (list, fn) => list.map((a) => {
+    const o = { ...a };
+    ['text', 'caption'].forEach((k) => { if (typeof o[k] === 'string') o[k] = fn(o[k]); });
+    return o;
+  });
+
+  /** Cartões sempre abertos, como no WaSpeed (openAll: false deixa só os 3 primeiros abertos) */
+  ui.actionsEditor = (initial = [], { title = 'Ação do Resposta Rápida', openAll = true } = {}) => {
+    let actions = mapText(ZF.clone(initial || []).map((a) => ({ id: a.id || ZF.uid(), ...a })), toHash);
+    const open = new Set(openAll || actions.length <= 3 ? actions.map((a) => a.id) : []);
     let lastField = null;
     let labelsCache = null;
 
@@ -315,8 +331,35 @@
       render();
     };
 
+    let reorder = false; // modo "mover": cartões viram linhas compactas que se arrastam
+    let dragFrom = null;
+    function renderReorder() {
+      actions.forEach((a, i) => {
+        const def = T()[a.type] || { label: a.type, icon: 'alert' };
+        const row = h('div', { class: 'zf-act zf-act-move', title: 'Arraste para mudar a ordem' },
+          icon('move', 16, 'zf-muted'), icon(def.icon, 17, 'zf-act-icon'),
+          h('div', { class: 'zf-grow', style: { minWidth: 0 } }, h('div', { class: 'zf-act-label' }, CARD_TITLE[a.type] || def.label), h('span', { class: 'zf-act-sum' }, ZF.actionSummary(a, names()))));
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => { dragFrom = i; e.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+        row.addEventListener('dragend', () => row.classList.remove('dragging'));
+        row.addEventListener('dragover', (e) => { e.preventDefault(); row.classList.add('over'); });
+        row.addEventListener('dragleave', () => row.classList.remove('over'));
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          if (dragFrom == null || dragFrom === i) return;
+          const [m] = actions.splice(dragFrom, 1);
+          actions.splice(i, 0, m);
+          dragFrom = null;
+          render();
+        });
+        list.appendChild(row);
+      });
+    }
+
     function render() {
       list.replaceChildren();
+      tagsBtn.disabled = trashAllBtn.disabled = moveBtn.disabled = !actions.length; // como no WaSpeed, só ficam ativos com alguma ação
+      moveBtn.classList.toggle('active', reorder);
       if (!actions.length) {
         list.appendChild(h('div', { class: 'zf-actempty' },
           icon('box', 30),
@@ -324,6 +367,7 @@
           h('div', { class: 'zf-muted' }, 'Adicione ações para criar e configurar modelos de envio personalizados para seus clientes')));
         return;
       }
+      if (reorder) { renderReorder(); return; }
       actions.forEach((a, i) => {
         const def = T()[a.type] || { label: a.type, icon: 'alert' };
         const isOpen = open.has(a.id);
@@ -333,11 +377,11 @@
         const head = h('div', { class: 'zf-act-h', onclick: () => { isOpen ? open.delete(a.id) : open.add(a.id); render(); } },
           h('span', { class: 'zf-act-num' }, i + 1),
           icon(def.icon, 17, 'zf-act-icon'),
-          h('div', { class: 'zf-grow', style: { minWidth: 0 } }, h('div', { class: 'zf-act-label' }, def.label), isOpen ? null : sum),
+          h('div', { class: 'zf-grow', style: { minWidth: 0 } }, h('div', { class: 'zf-act-label' }, CARD_TITLE[a.type] || def.label), isOpen ? null : sum),
           h('button', { class: 'zf-iconbtn', title: 'Subir', disabled: i === 0, onclick: stop(() => move(i, -1)) }, icon('arrowUp', 14)),
           h('button', { class: 'zf-iconbtn', title: 'Descer', disabled: i === actions.length - 1, onclick: stop(() => move(i, 1)) }, icon('arrowDown', 14)),
           h('button', { class: 'zf-iconbtn', title: 'Duplicar', onclick: stop(() => { const c = { ...ZF.clone(a), id: ZF.uid() }; actions.splice(i + 1, 0, c); open.add(c.id); render(); }) }, icon('copy', 14)),
-          h('button', { class: 'zf-iconbtn', title: 'Remover ação', onclick: stop(() => { actions.splice(i, 1); render(); }) }, icon('trash', 14)),
+          h('button', { class: 'zf-iconbtn danger', title: 'Remover só este cartão', onclick: stop(() => { actions.splice(i, 1); render(); }) }, icon('trash', 14)),
           icon(isOpen ? 'chevronUp' : 'chevronDown', 16, 'zf-muted'));
         const item = h('div', { class: 'zf-act' + (def.danger ? ' danger' : '') + (isOpen ? ' open' : ''), dataset: { id: a.id } }, head);
         if (isOpen) {
@@ -353,8 +397,8 @@
     const add = (type) => {
       const a = ZF.newAction(type);
       actions.push(a);
-      open.clear(); // mantém só a nova ação aberta (as outras mostram o resumo)
       open.add(a.id);
+      reorder = false;
       render();
       setTimeout(() => {
         const el = list.querySelector(`[data-id="${a.id}"]`);
@@ -386,7 +430,7 @@
         };
         ui.menu(e.currentTarget, [
           { title: 'Variáveis' },
-          ...ZF.BUILTIN_VARS.map((v) => ({ label: `{${v}} — ${ZF.VAR_HELP[v] || ''}`, onClick: () => insert(`{${v}}`) })),
+          ...ZF.BUILTIN_VARS.map((v) => { const tag = HASH[v] ? '#' + HASH[v] : `{${v}}`; return { label: `${tag} — ${ZF.VAR_HELP[v] || ''}`, onClick: () => insert(tag) }; }),
           { label: '{atendente} — nome do atendente (transferência)', onClick: () => insert('{atendente}') },
           '-',
           { label: 'Campo perguntado na hora…', icon: 'plus', onClick: async () => {
@@ -399,8 +443,23 @@
       },
     }, icon('hash', 13), 'Tags', icon('tag', 12));
 
+    const trashAllBtn = h('button', {
+      class: 'zf-iconbtn danger', title: 'Limpar todas as ações',
+      onclick: ui.safe(async (e) => {
+        e.preventDefault();
+        if (!(await ui.confirm('Remover todas as ações desta resposta?', { okLabel: 'Limpar tudo', danger: true, global: true }))) return;
+        actions = [];
+        reorder = false;
+        render();
+      }),
+    }, icon('trash', 20));
+    const moveBtn = h('button', {
+      class: 'zf-iconbtn', title: 'Mudar a ordem (arrastar)',
+      onclick: (e) => { e.preventDefault(); reorder = !reorder; render(); },
+    }, icon('move', 20));
+
     ZF.append(card,
-      h('div', { class: 'zf-actcard-h' }, h('span', { class: 'zf-actcard-title' }, title), tagsBtn),
+      h('div', { class: 'zf-actcard-h' }, h('span', { class: 'zf-actcard-title' }, title), tagsBtn, trashAllBtn, moveBtn),
       list,
       h('div', { class: 'zf-center' }, addBtn));
     render();
@@ -419,6 +478,7 @@
         if (a.type === 'pix') { try { ZF.pixPayload(a); } catch (e) { err = e.message; } }
         if (err) {
           open.add(a.id);
+          reorder = false;
           render();
           return `Ação ${i + 1} (${def.label}): ${err}`;
         }
@@ -428,7 +488,7 @@
 
     return {
       el: card,
-      get: () => ZF.clone(actions),
+      get: () => mapText(ZF.clone(actions), fromHash),
       validate,
       add,
     };

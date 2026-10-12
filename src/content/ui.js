@@ -162,7 +162,7 @@
     // Configurações abrem numa janela própria; o painel volta para as respostas
     ui.current = settings.lastTab && ui.tabs[settings.lastTab] && settings.lastTab !== 'settings' ? settings.lastTab : 'replies';
     ui.applySettings(settings);
-    ui.toggle(settings.panelOpen, false);
+    ui.toggle(false, false); // ao recarregar o WhatsApp o painel começa fechado; só abre pelo ícone do ZapFlow
 
     store.onChange(['settings'], async () => {
       ui.settings = await store.settings();

@@ -105,6 +105,36 @@
     flash(rowEl);
   }
 
+  /** Olhinho: abre a resposta numa janela para editar e enviar só desta vez (a resposta salva não muda) */
+  async function openSendWindow(r) {
+    const chat = await ZF.wa.requireChat();
+    const sameChat = (c) => c && (c.chatId ? c.chatId === chat.chatId : c.phone === chat.phone);
+    const editor = ui.actionsEditor(r.actions, { title: 'Editar e enviar resposta rápida', openAll: true });
+    ui.modal({
+      title: h('span', { class: 'zf-row' }, icon(typeIcon(r), 18), `${r.title} → ${chat.name || chat.phone || 'conversa aberta'}`),
+      global: true,
+      wide: true,
+      onClose: () => store.gcFiles(), // arquivos anexados só nesta janela não ficam órfãos
+      body: h('div', { class: 'zf-sendwin' }, h('div', { class: 'zf-muted zf-small' }, 'As mudanças valem só para este envio; a resposta salva continua igual.'), editor.el),
+      actions: [{
+        label: '', class: 'zf-send-fab', icon: 'send', // botão redondo verde, como no WaSpeed
+        onClick: async (close) => {
+          const actions = editor.get();
+          const err = !actions.length ? 'Adicione pelo menos uma ação' : editor.validate();
+          if (err) { ui.toast(err, 'error', 5000); return false; }
+          const ctx = await prepare(actions);
+          if (!ctx) return false;
+          // a janela não trava o WhatsApp: se a conversa mudou enquanto editava, não envia para outra pessoa
+          if (!sameChat(ctx.info)) { ui.toast('A conversa aberta mudou. Volte para ' + (chat.name || 'a conversa original') + ' e envie de novo.', 'error', 6000); return false; }
+          close();
+          try { await runOnActiveChat([{ ...r, actions }], ctx, r.title); } finally { ui.setBusy(null); }
+          ui.toast('Resposta enviada', 'ok');
+          return false;
+        },
+      }],
+    });
+  }
+
   async function runScript(script, rowEl, from = 0) {
     const steps = scriptSteps(script).slice(from);
     if (!steps.length) throw ZF.userError('Este script não tem etapas.');
@@ -249,9 +279,9 @@
         ui.toast(reply ? 'Resposta salva' : 'Resposta criada', 'ok');
         go({ name: 'list' });
       }),
-    }, reply ? 'Salvar' : 'Criar');
+    }, reply ? 'Editar' : 'Criar');
     return h('div', { class: 'zf-editor' },
-      editorHeader(reply ? 'Editar Resposta Rápida' : 'Criar Respostas Rápidas', 'reply'),
+      editorHeader(reply ? 'Editar Respostas Rápidas' : 'Criar Respostas Rápidas', 'reply'),
       ui.field('Título', t.el),
       editor.el,
       ui.field('Selecione uma categoria', cat.el),
@@ -468,16 +498,6 @@
         h('button', { class: 'zf-btn sm', title: 'Enviar desta etapa até o fim', onclick: ui.safe(async (e) => { e.stopPropagation(); await runScript(r, null, i); }) }, 'daqui em diante'))));
       return prev;
     }
-    (r.actions || []).forEach((a, i) => {
-      const def = ZF.ACTION_TYPES[a.type];
-      if (!def) return;
-      if (i) prev.appendChild(h('div', { class: 'zf-sep' }));
-      if (a.type === 'text') prev.appendChild(h('div', {}, a.text));
-      else {
-        prev.appendChild(h('div', { class: 'zf-file' }, icon(def.icon, 14), h('b', {}, def.label), ' — ', ZF.actionSummary(a, { tab: (id) => (ZF.crm && ZF.crm.tabById(id) ? ZF.crm.tabById(id).name : ''), reply: (id) => (replyById(id) || {}).title })));
-        if (a.caption) prev.appendChild(h('div', {}, a.caption));
-      }
-    });
     return prev;
   }
 
@@ -501,8 +521,8 @@
     h('div', { class: 'zf-item-acts' },
       h('button', { class: 'zf-iconbtn', title: 'Mais opções', onclick: stop((e) => replyMenu(r, e.currentTarget)) }, icon('more', 18)),
       h('button', {
-        class: 'zf-iconbtn', title: isScript ? 'Ver etapas' : 'Pré-visualizar',
-        onclick: stop(() => togglePreview(r)),
+        class: 'zf-iconbtn', title: isScript ? 'Ver etapas' : 'Editar e enviar',
+        onclick: stop(() => (isScript ? togglePreview(r) : openSendWindow(r))),
       }, icon('eye', 17)),
       h('button', { class: 'zf-iconbtn accent', title: isScript ? 'Enviar todas as etapas' : 'Executar na conversa aberta', onclick: stop(() => useReply(r, 'send', row)) }, icon('send', 17))));
 
