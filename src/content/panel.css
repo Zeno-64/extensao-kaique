@@ -818,18 +818,18 @@ svg { flex-shrink: 0; }
 .zf-sendwin .zf-actcard { border: 0; box-shadow: none; padding: 4px 0 0; margin: 0; }
 .zf-sendwin .zf-actcard-title { font-size: 20px; }
 .zf-sendwin .zf-actcard-h { margin: 8px 0 14px; }
-.zf-actcard .zf-act { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(15, 23, 42, .06); }
+.zf-actcard .zf-act { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(15, 23, 42, .06); }
 .zf-actcard .zf-act.open { border-color: var(--border); }
-.zf-actcard .zf-act-h { padding: 14px 16px 6px; cursor: default; pointer-events: none; }
+.zf-actcard .zf-act-h { padding: 10px 12px 2px; cursor: default; pointer-events: none; }
 .zf-actcard .zf-act-h .zf-iconbtn { pointer-events: auto; opacity: .55; transition: opacity .15s ease; }
 .zf-actcard .zf-act-h .zf-iconbtn:hover { opacity: 1; }
 .zf-actcard .zf-act-h > svg.zf-muted, .zf-actcard .zf-act-num { display: none; }
-.zf-actcard .zf-act-label { font-size: 15.5px; }
+.zf-actcard .zf-act-label { font-size: 13px; }
 .zf-actcard .zf-act-msg { background: transparent; }
-.zf-actcard .zf-act-b { padding: 0 16px 16px; }
-.zf-actcard .zf-pace { font-size: 13.5px; margin: 8px 0; gap: 12px; }
-.zf-actcard .zf-pace .zf-pace-n { width: 76px; height: 40px; border-radius: 10px; font-size: 14px; box-shadow: 0 1px 3px rgba(15, 23, 42, .1); }
-.zf-actcard .zf-act-b > .zf-textarea, .zf-actcard .zf-act-b .zf-textarea { min-height: 110px; border-radius: 10px; font-size: 14.5px; }
+.zf-actcard .zf-act-b { padding: 0 12px 12px; }
+.zf-actcard .zf-pace { font-size: 13px; margin: 6px 0; gap: 10px; }
+.zf-actcard .zf-pace .zf-pace-n { width: 52px; height: 24px; padding: 0 6px; border-radius: 8px; font-size: 13px; box-shadow: none; }
+.zf-actcard .zf-act-b > .zf-textarea, .zf-actcard .zf-act-b .zf-textarea { min-height: 92px; border-radius: 10px; font-size: 13.5px; }
 .zf-sendwin .zf-center { margin-top: 6px; }
 
 .zf-actcard .zf-pace { flex-wrap: nowrap; }
@@ -940,3 +940,9 @@ svg { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) {
   .zf-qk-screen > * { animation: zf-qk-fade .15s ease; }
 }
+
+/* caixinha dos segundos: sem setinhas de +/-, centralizada, com foco discreto */
+.zf-pace-n { -moz-appearance: textfield; appearance: textfield; text-align: center; }
+.zf-pace-n::-webkit-inner-spin-button, .zf-pace-n::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+.zf-actcard .zf-pace .zf-pace-n { width: 48px; border-color: var(--border); background: var(--bg); transition: border-color .12s ease, box-shadow .12s ease; }
+.zf-actcard .zf-pace .zf-pace-n:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
