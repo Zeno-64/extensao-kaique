@@ -73,16 +73,16 @@ eq('partes criptografadas', report.encrypted, ['títulos e atalhos das respostas
 eq('backup do ZapFlow parcial', [backup.app, backup.source, backup.parts], ['ZapFlow', 'waspeed', ['replies', 'schedules']]);
 
 const r1 = d.replies.find((r) => r.id === 'r1');
-eq('ações: aguarde, digitando, texto, documentos, etiqueta', r1.actions.map((a) => a.type), ['wait', 'typing', 'text', 'document', 'document', 'label_add']);
-eq('aguarde e digitando em segundos', [r1.actions[0].seconds, r1.actions[1].seconds], [3, 2]);
-eq('etiqueta do WhatsApp', [r1.actions[5].labelId], ['5']);
-eq('mesmo PDF vira um arquivo só', [r1.actions[3].fileId === d.replies.find((r) => r.id === 'r2').actions[1].fileId, Object.keys(d).filter((k) => k.startsWith('file:')).length], [true, 3]);
-eq('arquivo guardado', (({ name, mime, size }) => ({ name, mime, size }))(d['file:' + r1.actions[3].fileId]), { name: 'Manual.pdf', mime: 'application/pdf', size: 15 });
+eq('ações: texto, documentos, etiqueta (aguarde/digitando ficam no texto)', r1.actions.map((a) => a.type), ['text', 'document', 'document', 'label_add']);
+eq('digitando antes e aguarde depois, em segundos, na própria mensagem', [r1.actions[0].typingSeconds, r1.actions[0].afterSeconds], [2, 3]);
+eq('etiqueta do WhatsApp', [r1.actions[3].labelId], ['5']);
+eq('mesmo PDF vira um arquivo só', [r1.actions[1].fileId === d.replies.find((r) => r.id === 'r2').actions[1].fileId, Object.keys(d).filter((k) => k.startsWith('file:')).length], [true, 3]);
+eq('arquivo guardado', (({ name, mime, size }) => ({ name, mime, size }))(d['file:' + r1.actions[1].fileId]), { name: 'Manual.pdf', mime: 'application/pdf', size: 15 });
 eq('títulos diferenciados', [r1.title, d.replies.find((r) => r.id === 'r2').title], ['Perfeito. Segue o manual: · Bangu', 'Perfeito. Segue o manual: · Tijuca']);
 const r3 = d.replies.find((r) => r.id === 'r3');
 eq('texto com variáveis do ZapFlow', r3.actions.find((a) => a.type === 'text').text, '{saudacao}, {primeiro_nome}. [Nome], por que [está caro]? {Oi|Olá}!');
 const r4 = d.replies.find((r) => r.id === 'r4');
-eq('imagem com legenda', [r4.actions.map((a) => a.type), r4.actions[1].caption, r4.title], [['typing', 'image'], 'Planos *online*', 'Planos online']);
+eq('imagem com legenda e digitando', [r4.actions.map((a) => a.type), r4.actions[0].caption, r4.actions[0].typingSeconds, r4.title], [['image'], 'Planos *online*', 1, 'Planos online']);
 eq('categoria das importadas', [d.categories[0].name, d.replies.every((r) => r.categoryId === W.CATEGORY_ID)], ['Importadas do WaSpeed', true]);
 eq('resposta sem ação conhecida fica de fora', d.replies.some((r) => r.id === 'r5'), false);
 

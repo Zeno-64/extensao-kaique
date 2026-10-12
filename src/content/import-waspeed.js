@@ -119,24 +119,23 @@
       let firstFile = '';
       (Array.isArray(r.acao) ? r.acao : []).forEach((a) => {
         const p = a.propriedades || {};
-        const delay = () => {
-          if (Number(p.aguarde) > 0) actions.push({ id: ZF.uid(), type: 'wait', seconds: Number(p.aguarde) });
-          if (Number(p.composing) > 0) actions.push({ id: ZF.uid(), type: 'typing', seconds: Number(p.composing) });
+        // como no WaSpeed, o "digitando…" (composing) e a espera depois da ação (aguarde) ficam na própria mensagem
+        const pace = {
+          ...(Number(p.composing) > 0 ? { typingSeconds: Number(p.composing) } : {}),
+          ...(Number(p.aguarde) > 0 ? { afterSeconds: Number(p.aguarde) } : {}),
         };
         if (a.type === 'txt') {
           const text = convertText(p.mensagem);
           if (!text.trim()) return;
-          delay();
-          actions.push({ id: ZF.uid(), type: 'text', text });
+          actions.push({ id: ZF.uid(), type: 'text', text, ...pace });
           if (!firstText) firstText = text;
         } else if (a.type === 'image' || a.type === 'doc' || a.type === 'video' || a.type === 'audio') {
           const f = addFile(p.base64, p.base64Name, a.id || ZF.uid());
           if (!f) return;
-          delay();
           const mime = f.mime;
           const type = a.type === 'doc' ? 'document' : mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'document';
           const caption = convertText(p.mensagem);
-          actions.push({ id: ZF.uid(), type, ...f, caption, ...(type === 'audio' ? { asVoice: true } : {}) });
+          actions.push({ id: ZF.uid(), type, ...f, caption, ...pace, ...(type === 'audio' ? { asVoice: true } : {}) });
           if (!firstText && caption.trim()) firstText = caption;
           if (!firstFile) firstFile = (f.name || '').replace(/\.[^.]+$/, '');
         } else if (a.type === 'addLabel' && p.labelID != null) {
