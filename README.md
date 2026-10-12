@@ -11,7 +11,7 @@ CRM com abas, respostas rápidas com ações, scripts, agendamentos, lembretes, 
 - 📁+ cria uma aba. ☰ abre o **quadro de atendimento** (Kanban) e o gerenciamento das abas.
 - Botão direito numa aba: editar, disparo em massa, exportar ou excluir.
 
-**Botão flutuante:** fica só o botão azul redondo, **no canto de baixo da conversa, logo acima da barra de digitação** (ele acompanha a conversa quando ela muda de tamanho). **Clicando nele as opções sobem** a partir dele (clicar de novo, clicar fora ou apertar `Esc` faz elas descerem). Segure e arraste para **qualquer lugar da tela**: a partir daí ele fica exatamente onde você soltar (a posição é lembrada) e não passa por cima da barra da esquerda, da barra de abas nem do painel aberto. Quando o painel abre, o botão acompanha a borda dele. "Voltar os botões para a posição padrão" fica em Configurações → Funcionalidades do Menu.
+**Botão flutuante:** fica só o botão azul redondo, **no canto de baixo da conversa, logo acima da barra de digitação** (ele acompanha a conversa quando ela muda de tamanho). **Clicando nele as opções sobem** a partir dele (clicar de novo, clicar fora ou apertar `Esc` faz elas descerem). Ele é **fixo** nesse canto, com o painel aberto ou fechado (não dá para arrastar).
 
 | Opção (de cima para baixo) | Faz |
 |---|---|
