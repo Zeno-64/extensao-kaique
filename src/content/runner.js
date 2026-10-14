@@ -65,7 +65,9 @@
   /* ---------------- finalização ---------------- */
   async function finishSchedule(id, result) {
     let done = null;
-    await store.updateItem('schedules', id, (s) => {
+    await store.update('schedules', (list) => {
+      const s = list.find((x) => x.id === id);
+      if (!s) return list;
       s.history = (s.history || []).slice(-19);
       s.history.push({ at: Date.now(), ok: !!result.ok, error: result.error || null });
       s.lastRunAt = Date.now();
@@ -80,8 +82,11 @@
       } else {
         s.status = result.missed ? 'missed' : 'failed';
       }
-      done = s;
+      done = ZF.clone(s);
+      // enviado e sem repetição: sai da lista (fica só no relatório)
+      return s.status === 'sent' ? list.filter((x) => x.id !== id) : list;
     });
+    if (done && !result.missed) await store.addLog([store.logEntry(done, result)]);
     if (done && !result.ok && !result.missed) notify('Agendamento não enviado', `${done.target.name || ZF.fmtPhone(done.target.phone)}: ${result.error || 'falha'}`);
   }
 

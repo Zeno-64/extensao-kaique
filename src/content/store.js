@@ -39,11 +39,14 @@
     backupTo: '', // vazio = o próprio número da conta
   };
 
+  const LOG_MAX = 100; // linhas guardadas no relatório de envios dos agendamentos
+
   const DEFAULTS = {
     settings: DEFAULT_SETTINGS,
     categories: [],
     replies: [],
     schedules: [],
+    scheduleLog: [], // relatório: envios feitos pelos agendamentos (mais recente primeiro)
     campaigns: [],
     reminders: [],
     crmChats: {}, // { [chave da conversa]: { name, phone, chatId, isGroup, tags:[], notes:[] } }
@@ -56,7 +59,7 @@
   // Partes que dá para escolher no backup. "crm": parte dos dados de cada conversa (crmChats)
   const PARTS = {
     replies: { label: 'Respostas rápidas e scripts', icon: 'zap', keys: ['replies', 'categories'] },
-    schedules: { label: 'Agendamentos', icon: 'calendarClock', keys: ['schedules'] },
+    schedules: { label: 'Agendamentos', icon: 'calendarClock', keys: ['schedules', 'scheduleLog'] },
     notes: { label: 'Notas', icon: 'clipboardEdit', crm: 'notes' },
     tabs: { label: 'Abas do CRM (e a ordem delas)', icon: 'folderArrow', keys: ['crmTags'], crm: 'tags' },
     campaigns: { label: 'Envio em massa', icon: 'send', keys: ['campaigns'] },
@@ -125,6 +128,20 @@
         return list;
       });
     },
+    /** Linha do relatório de envios a partir de um agendamento */
+    logEntry(s, result = {}, at = Date.now()) {
+      return {
+        id: ZF.uid(), scheduleId: s.id, at, title: s.title || '', kind: s.kind || null,
+        target: { ...s.target }, blocks: ZF.clone(s.blocks || []), vars: { ...(s.vars || {}) },
+        repeat: s.repeat || 'none', everyDays: s.everyDays || null, anchorDay: s.anchorDay || null,
+        status: result.ok ? 'sent' : 'failed', error: result.ok ? null : result.error || null,
+      };
+    },
+    /** Guarda no relatório (os mais recentes primeiro, até LOG_MAX) */
+    addLog(entries) {
+      return store.update('scheduleLog', (list) => entries.concat(list || [])
+        .sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, LOG_MAX));
+    },
     async settings() {
       return store.get('settings');
     },
@@ -149,7 +166,7 @@
     async gcFiles() {
       const all = await chrome.storage.local.get(null);
       const used = new Set();
-      [all.replies, all.schedules, all.campaigns].forEach((list) => fileIdsIn(list, used));
+      [all.replies, all.schedules, all.scheduleLog, all.campaigns].forEach((list) => fileIdsIn(list, used));
       const drop = Object.keys(all).filter((k) => k.startsWith('file:') && !used.has(k.slice(5)));
       if (drop.length) await chrome.storage.local.remove(drop);
       return drop.length;
@@ -175,6 +192,7 @@
       }
       fileIdsIn(data.replies).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
       fileIdsIn(data.schedules).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
+      fileIdsIn(data.scheduleLog).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
       fileIdsIn(data.campaigns).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
       return { app: 'ZapFlow', version: 2, exportedAt, parts: sel, data };
     },
@@ -212,7 +230,7 @@
         await store.migrate();
         return;
       }
-      const cur = await store.getMany(['categories', 'replies', 'schedules', 'campaigns', 'reminders', 'crmTags', 'crmChats']);
+      const cur = await store.getMany(['categories', 'replies', 'schedules', 'scheduleLog', 'campaigns', 'reminders', 'crmTags', 'crmChats']);
       const merge = (a, b) => {
         const ids = new Set(a.map((x) => x.id));
         return a.concat((b || []).filter((x) => !ids.has(x.id)));
@@ -236,6 +254,7 @@
         categories: merge(cur.categories, d.categories),
         replies: merge(cur.replies, d.replies),
         schedules: merge(cur.schedules, d.schedules),
+        scheduleLog: merge(cur.scheduleLog, d.scheduleLog).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, LOG_MAX),
         campaigns: merge(cur.campaigns, d.campaigns),
         reminders: merge(cur.reminders, d.reminders),
         crmTags: merge(cur.crmTags, d.crmTags),
@@ -250,6 +269,18 @@
       const { replies, settings } = await chrome.storage.local.get(['replies', 'settings']);
       if (Array.isArray(replies) && replies.some((r) => !Array.isArray(r.actions))) {
         await store.update('replies', (list) => list.map(ZF.migrateReply));
+        changed = true;
+      }
+      // v1.9: agendamento enviado (sem repetição) sai da lista e vai para o relatório
+      const { schedules } = await chrome.storage.local.get('schedules');
+      if (Array.isArray(schedules) && schedules.some((x) => x.status === 'sent')) {
+        const moved = [];
+        await store.update('schedules', (list) => list.filter((x) => {
+          if (x.status !== 'sent') return true;
+          moved.push(store.logEntry(x, { ok: true }, x.sentAt || x.lastRunAt || x.sendAt));
+          return false;
+        }));
+        if (moved.length) await store.addLog(moved);
         changed = true;
       }
       // v1.8: o disparo passou a ter um intervalo só (sem mínimo/máximo) e a pausa em segundos

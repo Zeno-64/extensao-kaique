@@ -428,6 +428,7 @@ svg { flex-shrink: 0; }
 .zf-dock-items { display: flex; flex-direction: column; gap: 8px; }
 .zf-dock:not(.open) .zf-dock-items { display: none; }
 .zf-dock.zf-hidden { display: none; }
+.zf-dock.zf-nochat { display: none; }
 .zf-dock-btn, .zf-dock-logo { position: relative; border: 0; cursor: pointer; display: grid; place-items: center; }
 .zf-dock-btn {
   width: 38px; height: 38px; border-radius: 11px; background: #fff; color: var(--accent);
@@ -946,3 +947,68 @@ svg { flex-shrink: 0; }
 .zf-pace-n::-webkit-inner-spin-button, .zf-pace-n::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
 .zf-actcard .zf-pace .zf-pace-n { width: 48px; border-color: var(--border); background: var(--bg); transition: border-color .12s ease, box-shadow .12s ease; }
 .zf-actcard .zf-pace .zf-pace-n:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* ---------- v1.9: "Criar Agendamento" (layout do WaSpeed) ---------- */
+.zf-overlay.global .zf-modal.zf-sed { max-width: 640px; }
+.zf-sed .zf-modal-h { font-size: 21px; padding: 18px 14px 6px 24px; }
+.zf-sed .zf-modal-b { padding: 4px 24px 8px; }
+.zf-sed .zf-modal-f { border-top: 0; justify-content: space-around; padding: 8px 24px 20px; }
+.zf-sed .zf-modal-f .zf-btn { min-width: 84px; justify-content: center; }
+.zf-sed .zf-field > label, .zf-sed-label { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+.zf-sed-label > svg { color: var(--muted); }
+.zf-sed-vars { width: 22px; height: 22px; color: var(--muted); }
+.zf-sed-to { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 13px; min-width: 0; }
+.zf-sed-to > svg { color: var(--muted); }
+.zf-sed-kinds { display: flex; flex-wrap: wrap; gap: 4px; }
+.zf-sed-kind { border: 0; background: transparent; cursor: pointer; padding: 7px 14px; border-radius: 8px; font-weight: 700; font-size: 13.5px; color: var(--text); }
+.zf-sed-kind:hover { background: var(--hover); }
+.zf-sed-kind.active { background: var(--accent-fill); color: #fff; }
+.zf-sed-msg { position: relative; }
+.zf-sed-msg .zf-textarea { min-height: 140px; padding-right: 42px; }
+.zf-sed-msgtools { position: absolute; top: 6px; right: 6px; display: flex; flex-direction: column; gap: 2px; }
+.zf-sed-msgtools .zf-iconbtn { width: 28px; height: 28px; color: var(--muted); }
+.zf-sed-msgtools .zf-iconbtn:hover { color: var(--accent); }
+.zf-sed-split { display: flex; gap: 16px; align-items: flex-start; }
+.zf-sed-split > .zf-grow { min-width: 0; }
+.zf-sed-split.media { align-items: center; }
+.zf-sed-import {
+  flex: none; width: 78px; height: 96px; margin-top: 22px; border: 0; border-radius: 8px; cursor: pointer; background: var(--bg);
+  box-shadow: 0 2px 10px rgba(18, 38, 96, .16); color: var(--accent); font-weight: 700; font-size: 13.5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; overflow: hidden;
+}
+.zf-sed-import:hover { box-shadow: 0 3px 14px rgba(36, 85, 230, .3); }
+.zf-sed-import.has { width: 96px; color: var(--text); font-weight: 400; font-size: 11.5px; }
+.zf-sed-thumb { width: 56px; height: 48px; display: grid; place-items: center; color: var(--muted); }
+.zf-sed-thumb img { width: 56px; height: 48px; object-fit: cover; border-radius: 4px; }
+.zf-sed-fname { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-sed-swap { color: var(--accent); font-weight: 700; }
+.zf-sed-audio { display: flex; flex-direction: column; gap: 6px; width: 200px; margin-top: 18px; }
+.zf-sed-audio .zf-btn { justify-content: flex-start; height: 30px; }
+.zf-sed-audio .zf-btn.primary.danger, .zf-sed-audio .zf-btn.primary.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+.zf-sed-audio .zf-filebox { margin: 4px 0 0; }
+.zf-sed-replycard { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px 12px; box-shadow: 0 1px 4px rgba(18, 38, 96, .06); }
+.zf-sed-select {
+  width: 100%; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-size: 14px; text-align: left;
+}
+.zf-sed-select:hover, .zf-sed-select:focus { border-color: var(--text); outline: 0; }
+.zf-sed-select > svg { color: var(--muted); }
+.zf-popover { max-width: none; padding: 8px; }
+.zf-sed-search { display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 8px; background: var(--surface); margin-bottom: 6px; color: var(--muted); }
+.zf-sed-search .zf-input { border: 0; background: transparent; box-shadow: none; padding-left: 2px; color: var(--text); }
+.zf-sed-replies { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; }
+.zf-sed-replies button { justify-content: flex-start; font-size: 14.5px; padding: 7px 10px; }
+.zf-sed-replies button > svg { color: var(--muted); }
+.zf-sed-radio { display: flex; align-items: center; gap: 10px; border: 0; background: transparent; cursor: pointer; padding: 4px 0; font-size: 15px; color: var(--text); }
+.zf-sed-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--accent); display: grid; place-items: center; flex: none; }
+.zf-sed-dot.on::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.zf-sed-every { gap: 8px; margin: 8px 0 4px 28px; font-size: 13.5px; }
+.zf-sed .zf-select:disabled { opacity: .55; }
+
+/* janela de agendamentos: relatório e lista vazia */
+.zf-reportbtn { color: var(--accent); border-color: var(--accent); position: relative; }
+.zf-reportbtn .zf-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent-fill); color: #fff; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; }
+.zf-sched-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 24px; }
+.zf-sched-empty > svg { color: var(--accent); }
+.zf-sched-empty b { color: var(--text); font-size: 15.5px; }
+.zf-sched-empty span { max-width: 420px; }

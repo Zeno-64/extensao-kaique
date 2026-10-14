@@ -121,6 +121,23 @@
     },
   };
 
+  /** Melhora um texto qualquer com a IA (varinha dos formulários) e devolve o texto novo */
+  ZF.aiImprove = async (text) => {
+    if (!String(text || '').trim()) throw ZF.userError('Escreva a mensagem primeiro.');
+    const keepalive = setInterval(() => bg({ type: 'ZF_KEEPALIVE' }).catch(() => {}), 20000);
+    try {
+      const r = await bg({
+        type: 'ZF_AI', system: await systemPrompt(), maxTokens: 4000,
+        messages: [{ role: 'user', content: `Reescreva a mensagem abaixo deixando-a mais clara, cordial e profissional, mantendo o sentido, as variáveis entre chaves (ex.: {nome}) e um tamanho parecido.\n\n<mensagem>\n${text}\n</mensagem>` }],
+      });
+      if (!r || !r.ok) {
+        if (r && r.code === 'no_key') throw ZF.userError('Cadastre a chave da IA em Configurações para usar a varinha.');
+        throw new Error((r && r.error) || 'Falha ao falar com a IA');
+      }
+      return r.text.trim();
+    } finally { clearInterval(keepalive); }
+  };
+
   /* ---------------- usar o resultado ---------------- */
   async function useResult(r, how) {
     if (how === 'copy') {

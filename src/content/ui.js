@@ -284,7 +284,7 @@
       h('span', { class: 'zf-dock-ico zf-dock-ico-x' }, icon('x', 20)),
       h('span', { class: 'zf-tip' }, 'ZapFlow — opções'));
     ui.dockLogo = logo;
-    ui.dock = h('div', { class: 'zf-dock zf-keep' }, items, logo);
+    ui.dock = h('div', { class: 'zf-dock zf-keep zf-nochat' }, items, logo);
     ui.dockOpen = false;
     try { localStorage.removeItem('zapflow-dock-collapsed'); } catch (e) { /* ignora */ }
     ui.wrap.appendChild(ui.dock);
@@ -295,7 +295,16 @@
     window.addEventListener('resize', () => ui.placeDock());
     // a conversa muda de tamanho sozinha (painel do contato, lista de conversas…): segue o canto
     let lastCorner = '';
-    ZF.every(700, () => {
+    ZF.every(300, () => {
+      // o botão só existe dentro de uma conversa aberta: some na tela inicial e quando
+      // o WhatsApp abre algo por cima do chat (foto, vídeo, documento, janelas)
+      const show = chatVisible();
+      if (show !== !ui.dock.classList.contains('zf-nochat')) {
+        ui.dock.classList.toggle('zf-nochat', !show);
+        if (!show && ui.dockOpen) ui.toggleDock(false);
+        if (show) lastCorner = '';
+      }
+      if (!show) return;
       const c = chatCorner();
       const sig = c ? `${Math.round(c.left)}|${Math.round(c.right)}|${Math.round(c.bottom)}` : 'none';
       if (sig === lastCorner) return;
@@ -323,6 +332,24 @@
     if (!fr || fr.height < 20) return null; // #main existe até na tela vazia ("Ligações"): sem campo de mensagem não há conversa aberta
     const overFooter = fr && fr.height > 20 && fr.top > r.top;
     return { left: r.left, right: r.right, bottom: window.innerHeight - (overFooter ? fr.top : r.bottom) };
+  };
+
+  /**
+   * Há uma conversa aberta e à vista? Confere o que está no topo em dois pontos do chat
+   * (perto do canto do botão e no meio): se não for parte do #main, algo do WhatsApp
+   * está por cima (visualizador de mídia, janela, etc.). O próprio ZapFlow não conta.
+   */
+  const chatVisible = () => {
+    const main = document.querySelector('#main');
+    const c = chatCorner();
+    if (!main || !c) return false;
+    const r = main.getBoundingClientRect();
+    const footY = window.innerHeight - c.bottom;
+    const pts = [[r.left + 40, footY - 30], [r.left + r.width / 2, r.top + r.height / 2]];
+    return pts.every(([x, y]) => {
+      const el = document.elementsFromPoint(x, y).find((n) => n.id !== 'zapflow-root');
+      return !el || main.contains(el);
+    });
   };
 
   /** Área do WhatsApp (sem a barra da esquerda, sem a barra do topo e sem o painel): referência da posição dos botões */
@@ -507,7 +534,7 @@
 
   /* ---------------- modal ---------------- */
   /** Abre dentro do painel; com o painel fechado (ou global:true) abre no meio da tela */
-  ui.modal = ({ title, body, actions = [], onClose, global = false, wide = false }) => {
+  ui.modal = ({ title, body, actions = [], onClose, global = false, wide = false, className = '' }) => {
     ui.closeMenu();
     const inPanel = ui.open && !global;
     const overlay = h('div', { class: 'zf-overlay' + (inPanel ? '' : ' global') });
@@ -526,7 +553,7 @@
       }));
       footer.appendChild(btn);
     });
-    const modal = h('div', { class: 'zf-modal' + (wide ? ' wide' : '') },
+    const modal = h('div', { class: 'zf-modal' + (wide ? ' wide' : '') + (className ? ' ' + className : '') },
       h('div', { class: 'zf-modal-h' }, h('div', { class: 'zf-grow' }, title),
         h('button', { class: 'zf-iconbtn', title: 'Fechar', onclick: close }, icon('x', 18))),
       h('div', { class: 'zf-modal-b' }, body),
@@ -554,7 +581,7 @@
   });
 
   /** Pede valores para variáveis personalizadas: {horario} → campo "horario" */
-  ui.askVars = (names, title = 'Preencha os campos') => new Promise((resolve) => {
+  ui.askVars = (names, title = 'Preencha os campos', { global = false } = {}) => new Promise((resolve) => {
     let answered = false;
     const inputs = {};
     const body = h('div', {},
@@ -569,6 +596,7 @@
     ui.modal({
       title,
       body,
+      global,
       onClose: () => { if (!answered) resolve(null); },
       actions: [
         { label: 'Cancelar' },
@@ -605,6 +633,15 @@
     class: (it.danger ? 'danger ' : '') + (it.active ? 'active' : ''),
     onclick: ui.safe(async (e) => { e.stopPropagation(); ui.closeMenu(); await it.onClick(); }),
   }, it.icon ? icon(it.icon, 16) : null, h('span', {}, it.label), it.count != null ? h('span', { class: 'zf-menu-count' }, it.count) : null);
+
+  /** Caixa suspensa com conteúdo livre, presa a um botão (fecha ao clicar fora) */
+  ui.popover = (anchor, el, { align = 'left', width } = {}) => {
+    ui.closeMenu();
+    const menu = h('div', { class: 'zf-menu zf-popover' }, el);
+    if (width) menu.style.width = width + 'px';
+    placeMenu(menu, anchor, align);
+    return menu;
+  };
 
   ui.menu = (anchor, items, { align = 'right' } = {}) => {
     ui.closeMenu();
@@ -847,7 +884,7 @@
    * Lista as conversas do WhatsApp com busca e filtros e permite escolher várias.
    * filter: 'all' | 'groups' | 'contacts' | 'unread'. Resolve com [chatInfo] ou null.
    */
-  ui.pickChats = ({ title = 'Escolher conversas', filter = 'all', multi = true, okLabel = 'Adicionar' } = {}) => new Promise(async (resolve) => {
+  ui.pickChats = ({ title = 'Escolher conversas', filter = 'all', multi = true, okLabel = 'Adicionar', global = false } = {}) => new Promise(async (resolve) => {
     const r = await ZF.wa.bridge('listChats', {}, 20000);
     if (!r || !r.ok) {
       ui.toast('Não consegui ler suas conversas (recurso indisponível nesta versão do WhatsApp).', 'error', 5000);
@@ -914,6 +951,7 @@
     renderList();
     modalRef = ui.modal({
       title,
+      global,
       body: h('div', {}, search, chipsEl, list, multi ? h('div', { style: { marginTop: '6px' } }, countEl) : null),
       onClose: () => { if (!answered) resolve(null); },
       actions: multi ? [
