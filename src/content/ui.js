@@ -179,13 +179,19 @@
     ZF.on('runner', (st) => ui.renderStatus(st));
     ZF.every(1000, () => ui.renderStatus(ZF.runner && ZF.runner.state));
 
-    // foto, vídeo ou documento aberto no WhatsApp: as barras do ZapFlow saem da frente
+    // foto, vídeo ou documento aberto no WhatsApp: as barras e o painel do ZapFlow saem da frente
+    // (o painel continua "aberto" e volta sozinho quando a mídia fecha)
     ZF.every(300, () => {
       const front = waOverlayOpen();
       if (front === !!ui.waFront) return;
       ui.waFront = front;
+      ui.wrap.classList.toggle('zf-wafront', front);
+      if (front) ui.closeMenu();
+      document.documentElement.classList.toggle('zapflow-push', !!(ui.open && (ui.settings || {}).pushLayout && !front));
       ui.applyRail();
+      ui.squeezeApp();
       ZF.emit('wafront', front);
+      window.dispatchEvent(new Event('resize'));
     });
   };
 
@@ -215,7 +221,7 @@
     const w = Math.max(380, Math.min(600, Number(s.panelWidth) || 380));
     ui.wrap.style.setProperty('--w', w + 'px');
     document.documentElement.style.setProperty('--zapflow-w', w + 'px');
-    document.documentElement.classList.toggle('zapflow-push', !!(ui.open && s.pushLayout));
+    document.documentElement.classList.toggle('zapflow-push', !!(ui.open && s.pushLayout && !ui.waFront));
     ui.wrap.classList.toggle('zf-open', !!ui.open);
     if (ui.dock) ui.dock.style.display = s.dock === false ? 'none' : '';
     if (ui.launcher) ui.launcher.style.display = s.dock === false && !ui.open ? '' : 'none';
