@@ -134,6 +134,10 @@
       'html.zapflow-bar #app{top:var(--zapflow-bar-h,40px)!important;height:calc(100% - var(--zapflow-bar-h,40px))!important;min-height:0!important;}',
       // os contêineres de dentro não podem esticar além do #app já encolhido
       'html.zapflow-push #app>div,html.zapflow-rail #app>div{min-width:0!important;max-width:100%!important;}',
+      // foto/vídeo/documento aberto no WhatsApp: o ZapFlow esmaece por baixo da camada dele
+      '#zapflow-root{transition:opacity .18s ease!important;}',
+      // some na hora (a mídia abre limpa) e volta esmaecendo quando ela fecha
+      'html.zapflow-front #zapflow-root{opacity:0!important;pointer-events:none!important;transition:none!important;}',
     ].join('\n');
     (document.head || document.documentElement).appendChild(layout);
 
@@ -179,42 +183,98 @@
     ZF.on('runner', (st) => ui.renderStatus(st));
     ZF.every(1000, () => ui.renderStatus(ZF.runner && ZF.runner.state));
 
-    // foto, vídeo ou documento aberto no WhatsApp: as barras e o painel do ZapFlow saem da frente
-    // (o painel continua "aberto" e volta sozinho quando a mídia fecha)
-    ZF.every(300, () => {
-      const front = waOverlayOpen();
-      if (front === !!ui.waFront) return;
-      ui.waFront = front;
-      ui.wrap.classList.toggle('zf-wafront', front);
-      if (front) ui.closeMenu();
-      document.documentElement.classList.toggle('zapflow-push', !!(ui.open && (ui.settings || {}).pushLayout && !front));
-      ui.applyRail();
-      ui.squeezeApp();
-      ZF.emit('wafront', front);
-      window.dispatchEvent(new Event('resize'));
-    });
+    // foto, vídeo ou documento aberto no WhatsApp: confere assim que a tela muda (sem esperar o
+    // próximo ciclo), para a mídia já abrir em tela cheia — e de tempos em tempos, por garantia
+    let queued = false;
+    const queueFront = (records) => {
+      if (queued || !records.some((r) => r.addedNodes.length || r.removedNodes.length)) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; ui.checkFront(); });
+    };
+    new MutationObserver(queueFront).observe(document.body, { childList: true, subtree: true });
+    ZF.every(300, () => ui.checkFront());
+  };
+
+  /*
+   * Mídia aberta no WhatsApp (foto, vídeo, documento) ou janela com fundo escuro: a camada do
+   * WhatsApp é esticada para a tela inteira, por cima do ZapFlow, que esmaece. O WhatsApp em si
+   * não muda de tamanho (mudar fazia ele redesenhar tudo — a "animação grotesca"). Ao fechar a
+   * mídia, o ZapFlow volta esmaecendo. Se a camada não aceitar esticar, cai no jeito antigo:
+   * barras e painel saem da frente e o WhatsApp ocupa a tela.
+   */
+  const FRONT_CSS = { position: 'fixed', left: '0px', top: '0px', right: 'auto', bottom: 'auto', width: '100vw', height: '100vh', 'max-width': 'none', 'max-height': 'none', 'min-width': '0px', 'z-index': '2147483600' };
+  let frontEl = null;
+  const markFront = (el) => {
+    el.setAttribute('data-zf-front', '');
+    Object.entries(FRONT_CSS).forEach(([k, v]) => el.style.setProperty(k, v, 'important'));
+  };
+  const unmarkFront = (el) => {
+    el.removeAttribute('data-zf-front');
+    Object.keys(FRONT_CSS).forEach((k) => el.style.removeProperty(k));
+  };
+  /** Jeito antigo (reserva): esconde barras e painel e devolve a tela toda ao WhatsApp */
+  const setFallback = (front) => {
+    if (front === !!ui.waFront) return;
+    ui.waFront = front;
+    ui.wrap.classList.toggle('zf-wafront', front);
+    document.documentElement.classList.toggle('zapflow-push', !!(ui.open && (ui.settings || {}).pushLayout && !front));
+    ui.applyRail();
+    ui.squeezeApp();
+    ZF.emit('wafront', front);
+    window.dispatchEvent(new Event('resize'));
+  };
+  ui.checkFront = () => {
+    const layer = waLayer();
+    const html = document.documentElement;
+    if (layer !== frontEl) {
+      if (frontEl) unmarkFront(frontEl);
+      frontEl = layer;
+      if (layer) {
+        markFront(layer);
+        ui.closeMenu();
+        if (ui.dockOpen) ui.toggleDock(false);
+      }
+      html.classList.toggle('zapflow-front', !!layer);
+    }
+    const r = layer && layer.getBoundingClientRect();
+    const stretched = !!r && r.left <= 1 && r.top <= 1 && r.width >= window.innerWidth - 2 && r.height >= window.innerHeight - 2;
+    setFallback(!!layer && !stretched);
   };
 
   /**
-   * O WhatsApp abriu algo por cima de tudo (visualizador de foto/vídeo/documento, janela com fundo escuro)?
-   * Olha o que está no topo no meio da lista de conversas e no meio da área da direita: se for a mesma
-   * camada e ela não contém a lista (#side), é uma camada por cima. Gavetas laterais (nova conversa,
-   * dados do contato) cobrem só um dos lados e não contam. O próprio ZapFlow é ignorado.
+   * Camada que o WhatsApp abriu por cima de tudo, ou null. Olha o que está no topo no meio da lista
+   * de conversas e no meio da área da direita: a camada é o ancestral comum dos dois que não contém
+   * a lista (#side) nem a conversa (#main), subindo até onde der sem conter as duas. Gavetas laterais
+   * (nova conversa, dados do contato) cobrem só um dos lados e não contam. O ZapFlow é ignorado.
    */
-  const waOverlayOpen = () => {
+  const waLayer = () => {
     const side = document.querySelector('#side');
     const app = document.querySelector('#app');
-    const sr = side && side.getBoundingClientRect();
-    if (!sr || !app || sr.width < 100 || sr.height < 100) return false;
+    if (!side || !app) return null;
+    const main = document.querySelector('#main');
+    const holds = (n) => n.contains(side) || (main && n.contains(main));
+    // casca esticada que o WhatsApp esvaziou (sem nada visível dentro) não conta: não pode ficar na frente da tela
+    const shell = frontEl && frontEl.isConnected && ![...frontEl.children].some((c) => { const r = c.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
+      && !frontEl.textContent.trim() && /^(transparent|rgba\(0, 0, 0, 0\))$/.test(getComputedStyle(frontEl).backgroundColor) ? frontEl : null;
+    // a camada já esticada continua valendo enquanto estiver na página e na frente
+    if (frontEl && frontEl.isConnected && !shell && !holds(frontEl)) {
+      const fr = frontEl.getBoundingClientRect();
+      const hit = fr.width > 0 && document.elementsFromPoint(fr.left + fr.width / 2, fr.top + fr.height / 2).find((n) => n.id !== 'zapflow-root');
+      if (hit && frontEl.contains(hit)) return frontEl;
+    }
+    const sr = side.getBoundingClientRect();
+    if (sr.width < 100 || sr.height < 100) return null;
     const ar = app.getBoundingClientRect();
-    const top = (x, y) => document.elementsFromPoint(x, y).find((n) => n.id !== 'zapflow-root');
+    const top = (x, y) => document.elementsFromPoint(x, y).find((n) => n.id !== 'zapflow-root' && n !== shell);
     const y = sr.top + sr.height / 2;
     const a = top(sr.left + sr.width / 2, y);
     const b = top((sr.right + ar.right) / 2, y);
-    if (!a || !b || side.contains(a)) return false;
+    if (!a || !b || side.contains(a)) return null;
     let p = a;
     while (p && !p.contains(b)) p = p.parentElement;
-    return !!p && !p.contains(side);
+    if (!p || p === app || holds(p) || !app.contains(p)) return null;
+    while (p.parentElement && p.parentElement !== app && !holds(p.parentElement)) p = p.parentElement;
+    return p;
   };
 
   ui.applySettings = (s) => {
@@ -478,6 +538,7 @@
     const want = app.getBoundingClientRect().width;
     if (want < 200) return;
     for (let el = app.firstElementChild, d = 0; el && d < 3; el = el.firstElementChild, d++) {
+      if (el.hasAttribute('data-zf-front')) continue;
       const fixed = getComputedStyle(el).position === 'fixed';
       if (!fixed && el.getBoundingClientRect().width <= want + 1) continue;
       if (fixed) el.style.setProperty('position', 'absolute', 'important');
