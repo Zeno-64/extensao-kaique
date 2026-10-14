@@ -178,6 +178,37 @@
 
     ZF.on('runner', (st) => ui.renderStatus(st));
     ZF.every(1000, () => ui.renderStatus(ZF.runner && ZF.runner.state));
+
+    // foto, vídeo ou documento aberto no WhatsApp: as barras do ZapFlow saem da frente
+    ZF.every(300, () => {
+      const front = waOverlayOpen();
+      if (front === !!ui.waFront) return;
+      ui.waFront = front;
+      ui.applyRail();
+      ZF.emit('wafront', front);
+    });
+  };
+
+  /**
+   * O WhatsApp abriu algo por cima de tudo (visualizador de foto/vídeo/documento, janela com fundo escuro)?
+   * Olha o que está no topo no meio da lista de conversas e no meio da área da direita: se for a mesma
+   * camada e ela não contém a lista (#side), é uma camada por cima. Gavetas laterais (nova conversa,
+   * dados do contato) cobrem só um dos lados e não contam. O próprio ZapFlow é ignorado.
+   */
+  const waOverlayOpen = () => {
+    const side = document.querySelector('#side');
+    const app = document.querySelector('#app');
+    const sr = side && side.getBoundingClientRect();
+    if (!sr || !app || sr.width < 100 || sr.height < 100) return false;
+    const ar = app.getBoundingClientRect();
+    const top = (x, y) => document.elementsFromPoint(x, y).find((n) => n.id !== 'zapflow-root');
+    const y = sr.top + sr.height / 2;
+    const a = top(sr.left + sr.width / 2, y);
+    const b = top((sr.right + ar.right) / 2, y);
+    if (!a || !b || side.contains(a)) return false;
+    let p = a;
+    while (p && !p.contains(b)) p = p.parentElement;
+    return !!p && !p.contains(side);
   };
 
   ui.applySettings = (s) => {
@@ -452,7 +483,7 @@
 
   ui.applyRail = (s = ui.settings || {}) => {
     if (!ui.rail) return;
-    const show = s.rail !== false && !!(ZF.wa && ZF.wa.isReady());
+    const show = s.rail !== false && !!(ZF.wa && ZF.wa.isReady()) && !ui.waFront;
     ui.rail.style.display = show ? '' : 'none';
     ui.wrap.classList.toggle('rail-on', show);
     ui.wrap.style.setProperty('--rail-w', (show ? RAIL_W : 0) + 'px');

@@ -149,9 +149,12 @@
   function applyVisibility() {
     if (!barEl) return;
     const ready = ZF.wa.isReady();
-    const show = ready && settings().topBar !== false;
+    // com foto/documento aberto no WhatsApp a barra sai da frente
+    const front = !!ui.waFront;
+    const show = ready && !front && settings().topBar !== false;
     barEl.style.display = show ? '' : 'none';
-    handleEl.style.display = ready && !show ? '' : 'none';
+    handleEl.style.display = ready && !front && !show ? '' : 'none';
+    if (overlayEl) overlayEl.style.display = front ? 'none' : '';
     // na tela de login (QR code) os botões flutuantes ficam escondidos
     if (ui.dock) ui.dock.classList.toggle('zf-hidden', !ready);
     if (ui.applyRail) ui.applyRail();
@@ -395,6 +398,7 @@
     applyVisibility();
     renderChips();
     ZF.on('settings', () => { applyVisibility(); renderChips(); });
+    ZF.on('wafront', () => applyVisibility());
     ZF.on('crm', () => {
       renderChips();
       if (tb.selected) renderOverlay(true);

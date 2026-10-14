@@ -1012,3 +1012,4 @@ svg { flex-shrink: 0; }
 .zf-sched-empty > svg { color: var(--accent); }
 .zf-sched-empty b { color: var(--text); font-size: 15.5px; }
 .zf-sched-empty span { max-width: 420px; }
+.zf-sched-add { display: flex; justify-content: center; padding: 12px 0 6px; }

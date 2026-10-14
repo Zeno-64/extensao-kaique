@@ -684,7 +684,7 @@
             h('thead', {}, h('tr', {}, head.map((t) => h('th', { class: t === 'Ações' ? 'acts' : '' }, t)))),
             h('tbody', {}, shown.map(reportRow))))
           : h('div', { class: 'zf-empty' }, scoped ? 'Nenhum envio para esta conversa ainda.' : 'Nenhum envio registrado ainda.'),
-        h('div', { style: { textAlign: 'center', marginTop: '10px' } },
+        h('div', { class: 'zf-sched-add' },
           h('button', { class: 'zf-btn primary', onclick: () => { winView = 'list'; renderWindow(); } }, 'Voltar')));
       return;
     }
@@ -706,7 +706,10 @@
           h('b', {}, 'Nenhum agendamento encontrado'),
           h('span', {}, 'Não há agendamentos programados no momento. Para adicionar um novo agendamento, clique no botão de criação.'),
           h('button', { class: 'zf-btn primary', onclick: ui.safe(() => addFromWindow()) }, icon('plus', 15), 'Adicionar')),
-      list.length > 200 ? h('div', { class: 'zf-hint' }, `Mostrando 200 de ${list.length}.`) : null);
+      list.length > 200 ? h('div', { class: 'zf-hint' }, `Mostrando 200 de ${list.length}.`) : null,
+      // com a lista vazia o "Adicionar" já está no meio do aviso
+      list.length ? h('div', { class: 'zf-sched-add' },
+        h('button', { class: 'zf-btn primary', onclick: ui.safe(() => addFromWindow()) }, icon('plus', 15), 'Adicionar')) : null);
   }
 
   const addFromWindow = () => openCreateSchedule(null, { target: !winAll ? targetOf(activeInfo()) : null });
@@ -725,10 +728,6 @@
       global: true,
       wide: true,
       onClose: () => { winApi = null; winBody = null; winTitle = null; ZF.activeChatWatchers.delete('schedwin'); },
-      actions: [
-        { label: 'Fechar' },
-        { label: 'Adicionar', class: 'primary', icon: 'plus', close: false, onClick: () => addFromWindow() },
-      ],
     });
     // com o painel fechado ninguém acompanha a conversa aberta: enquanto a janela existir, acompanha
     ZF.activeChatWatchers.add('schedwin');
