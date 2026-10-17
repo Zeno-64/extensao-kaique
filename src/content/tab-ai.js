@@ -229,7 +229,7 @@
   function renderSettings(body, s) {
     const instr = h('textarea', {
       class: 'zf-textarea', rows: 4, value: s.aiInstructions || '',
-      placeholder: 'Ex.: Sou nutricionista. Consultas online e presenciais (Barra e Tijuca). Valor da consulta: R$ 300. Tom acolhedor, trato por "você".',
+      placeholder: 'Ex.: Sou profissional de saúde. Consultas online e presenciais. Valor da consulta: R$ 300. Tom acolhedor, trato por "você".',
       onchange: (e) => store.saveSettings({ aiInstructions: e.target.value.trim() }).then(() => ui.toast('Instruções salvas', 'ok', 1400)),
     });
     ZF.append(body, h('details', { class: 'zf-section', style: { padding: '8px 12px', marginTop: '12px' } },

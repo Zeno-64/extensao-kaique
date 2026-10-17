@@ -35,7 +35,7 @@
   const VARS = { 'periodo-dia': '{saudacao}', primeironome: '{primeiro_nome}', nome: '{nome}', telefone: '{telefone}', numero: '{numero}', data: '{data}', hora: '{hora}' };
   /**
    * No WaSpeed, {texto} é texto comum (ex.: "{Nome}, pela nossa experiência…"); no ZapFlow viraria
-   * um campo perguntado na hora. Vira [texto], como os outros lembretes do próprio Kaique ([Nome]).
+   * um campo perguntado na hora. Vira [texto], como os outros lembretes de preencher ([Nome]).
    * {a|b} (sorteio) continua igual.
    */
   function convertText(s) {
@@ -65,7 +65,7 @@
 
   /**
    * Respostas com o mesmo começo (ex.: várias "Tudo bem? Estou passando para confirmar…") ganham
-   * no título o trecho que as diferencia da versão mais parecida (ex.: "· Bangu", "· de amanhã às Xh").
+   * no título o trecho que as diferencia da versão mais parecida (ex.: "· Unidade A", "· de amanhã às Xh").
    */
   function distinguish(items) {
     const lcp = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; };

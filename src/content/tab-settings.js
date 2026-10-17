@@ -89,7 +89,7 @@
     ui.closeMenu();
     quickBtn = anchor;
     const nameInput = ui.input({
-      value: cur().signatureName || '', placeholder: 'Nome na assinatura (ex.: Kaique)',
+      value: cur().signatureName || '', placeholder: 'Nome na assinatura (ex.: Ana)',
       onchange: (e) => save({ signatureName: e.target.value.trim() }, { quiet: true }),
     });
     const nameBox = h('div', { class: 'zf-qs-name', style: { display: cur().signatureCustom ? '' : 'none' } }, nameInput);
@@ -177,7 +177,7 @@
         row({ icon: 'edit', label: 'Personalizar o nome da assinatura', hint, control: sw('signatureCustom', { after: rerender }) }),
         s.signatureCustom ? row({
           label: 'Nome na assinatura',
-          control: ui.input({ value: s.signatureName || '', placeholder: 'Ex.: Kaique', style: { width: '200px' }, onchange: (e) => save({ signatureName: e.target.value.trim() }).then(() => signatureHint(hint)) }),
+          control: ui.input({ value: s.signatureName || '', placeholder: 'Ex.: Ana', style: { width: '200px' }, onchange: (e) => save({ signatureName: e.target.value.trim() }).then(() => signatureHint(hint)) }),
         }) : null),
       card('Envios',
         row({ icon: 'globe', label: 'DDI padrão', hint: 'Adicionado a números com até 11 dígitos (ex.: 11 98765-4321)', control: ui.input({ value: s.countryCode, style: { width: '80px' }, onchange: (e) => save({ countryCode: ZF.onlyDigits(e.target.value) || '55' }) }) }),
