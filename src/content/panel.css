@@ -421,7 +421,7 @@ svg { flex-shrink: 0; }
 /* ---------- botões flutuantes (dock) ---------- */
 .zf-dock {
   position: fixed; right: var(--dock-x, 14px); bottom: 86px; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  z-index: 30; pointer-events: auto; transition: right .15s ease, left .15s ease, bottom .15s ease;
+  z-index: 30; pointer-events: auto; /* sem transição de posição: o botão aparece e acompanha o chat na hora, sem "entrar" deslizando */
 }
 .zf.zf-open .zf-dock { right: calc(var(--w) + var(--dock-x, 14px)); }
 .zf-dock-items { display: flex; flex-direction: column; gap: 8px; }

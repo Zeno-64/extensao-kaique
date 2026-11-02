@@ -427,9 +427,10 @@
       // o WhatsApp abre algo por cima do chat (foto, vídeo, documento, janelas)
       const show = chatVisible();
       if (show !== !ui.dock.classList.contains('zf-nochat')) {
+        // ao abrir a conversa o botão já aparece no lugar certo, junto com o chat (posiciona antes de mostrar)
+        if (show) { ui.placeDock(); lastCorner = ''; }
         ui.dock.classList.toggle('zf-nochat', !show);
         if (!show && ui.dockOpen) ui.toggleDock(false);
-        if (show) lastCorner = '';
       }
       placeBolt(show);
       if (!show) return;
