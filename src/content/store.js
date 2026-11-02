@@ -48,6 +48,10 @@
     schedules: [],
     scheduleLog: [], // relatório: envios feitos pelos agendamentos (mais recente primeiro)
     campaigns: [],
+    followups: [], // sequências de follow-up programadas (cada etapa vira um agendamento)
+    followupPresets: [], // pré-definições de follow-up (mensagens + intervalos em dias)
+    followupCats: [], // categorias das pré-definições
+    followupButtons: [{ id: 'pause', label: 'Pausar Lista VIP', keyword: 'PAUSAR' }], // botões de resposta salvos (o padrão não se apaga)
     reminders: [],
     crmChats: {}, // { [chave da conversa]: { name, phone, chatId, isGroup, tags:[], notes:[] } }
     crmTags: [],
@@ -63,6 +67,7 @@
     notes: { label: 'Notas', icon: 'clipboardEdit', crm: 'notes' },
     tabs: { label: 'Abas do CRM (e a ordem delas)', icon: 'folderArrow', keys: ['crmTags'], crm: 'tags' },
     campaigns: { label: 'Envio em massa', icon: 'send', keys: ['campaigns'] },
+    followups: { label: 'Follow-ups (programados e pré-definições)', icon: 'repeat', keys: ['followups', 'followupPresets', 'followupCats', 'followupButtons'] },
     reminders: { label: 'Lembretes', icon: 'alarm', keys: ['reminders'] },
     settings: { label: 'Configurações (inclui o backup automático)', icon: 'settings', keys: ['settings'] },
   };
@@ -75,6 +80,9 @@
     })));
     return ids;
   };
+
+  /** Etapas (com blocos) de follow-ups e pré-definições, no formato que fileIdsIn lê */
+  const stepsOf = (list) => (list || []).flatMap((x) => x.steps || []);
 
   // Fila por chave para evitar escritas concorrentes dentro desta aba
   const locks = {};
@@ -166,7 +174,7 @@
     async gcFiles() {
       const all = await chrome.storage.local.get(null);
       const used = new Set();
-      [all.replies, all.schedules, all.scheduleLog, all.campaigns].forEach((list) => fileIdsIn(list, used));
+      [all.replies, all.schedules, all.scheduleLog, all.campaigns, stepsOf(all.followups), stepsOf(all.followupPresets)].forEach((list) => fileIdsIn(list, used));
       const drop = Object.keys(all).filter((k) => k.startsWith('file:') && !used.has(k.slice(5)));
       if (drop.length) await chrome.storage.local.remove(drop);
       return drop.length;
@@ -194,6 +202,7 @@
       fileIdsIn(data.schedules).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
       fileIdsIn(data.scheduleLog).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
       fileIdsIn(data.campaigns).forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
+      [...fileIdsIn(stepsOf(data.followups)), ...fileIdsIn(stepsOf(data.followupPresets))].forEach((id) => { if (all['file:' + id]) data['file:' + id] = all['file:' + id]; });
       return { app: 'ZapFlow', version: 2, exportedAt, parts: sel, data };
     },
     async importAll(json, mode = 'merge') {
@@ -230,7 +239,7 @@
         await store.migrate();
         return;
       }
-      const cur = await store.getMany(['categories', 'replies', 'schedules', 'scheduleLog', 'campaigns', 'reminders', 'crmTags', 'crmChats']);
+      const cur = await store.getMany(['categories', 'replies', 'schedules', 'scheduleLog', 'campaigns', 'followups', 'followupPresets', 'followupCats', 'followupButtons', 'reminders', 'crmTags', 'crmChats']);
       const merge = (a, b) => {
         const ids = new Set(a.map((x) => x.id));
         return a.concat((b || []).filter((x) => !ids.has(x.id)));
@@ -256,6 +265,10 @@
         schedules: merge(cur.schedules, d.schedules),
         scheduleLog: merge(cur.scheduleLog, d.scheduleLog).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, LOG_MAX),
         campaigns: merge(cur.campaigns, d.campaigns),
+        followups: merge(cur.followups, d.followups),
+        followupPresets: merge(cur.followupPresets, d.followupPresets),
+        followupCats: merge(cur.followupCats, d.followupCats),
+        followupButtons: merge(cur.followupButtons, d.followupButtons),
         reminders: merge(cur.reminders, d.reminders),
         crmTags: merge(cur.crmTags, d.crmTags),
         crmChats: mergeChats(cur.crmChats, d.crmChats),

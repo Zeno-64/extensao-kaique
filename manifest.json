@@ -52,6 +52,7 @@
         "src/content/tab-reminders.js",
         "src/content/tab-bulk.js",
         "src/content/quick-send.js",
+        "src/content/followup.js",
         "src/content/tab-ai.js",
         "src/content/tab-settings.js",
         "src/content/topbar.js",

@@ -207,6 +207,36 @@
    * Próxima ocorrência de um agendamento que se repete, sempre no futuro.
    * repeat: daily | weekdays | weekly | days (a cada everyDays dias) | monthly | yearly
    */
+  /** Soma dias, semanas ou meses (mês = mesmo dia do mês seguinte; dia 31 vira o último dia do mês) a uma data */
+  ZF.addCalendar = (ts, amount, unit = 'days') => {
+    const n = Math.max(0, Math.floor(Number(amount) || 0));
+    const d = new Date(ts);
+    if (unit === 'months') {
+      const day = d.getDate();
+      d.setDate(1);
+      d.setMonth(d.getMonth() + n);
+      d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+    } else d.setDate(d.getDate() + n * (unit === 'weeks' ? 7 : 1));
+    return d.getTime();
+  };
+  /**
+   * Datas de uma sequência de follow-up: a 1ª etapa na data/hora de início; cada seguinte
+   * "amount unit" depois da data da anterior (dia fixo), no horário padrão ou no da própria etapa.
+   * steps: [{ amount, unit, time? }]  (a 1ª ignora amount/unit)
+   */
+  ZF.followupDates = (startTs, steps, defaultTime = '09:00') => {
+    const at = (ts, time) => {
+      const d = new Date(ts);
+      const [hh, mm] = String(time || defaultTime).split(':').map(Number);
+      d.setHours(Number.isFinite(hh) ? hh : 9, Number.isFinite(mm) ? mm : 0, 0, 0);
+      return d.getTime();
+    };
+    const out = [];
+    (steps || []).forEach((s, i) => {
+      out.push(i === 0 ? at(startTs, s.time) : at(ZF.addCalendar(out[i - 1], s.amount, s.unit), s.time));
+    });
+    return out;
+  };
   ZF.nextOccurrence = (ts, repeat, anchorDay, everyDays, now = Date.now()) => {
     const d = new Date(ts);
     let guard = 0;
@@ -803,5 +833,12 @@
     return ZF.parseCSV(text);
   };
 
-  ZF.log = (...a) => console.debug('[ZapFlow]', ...a);
+  /** Dois dígitos, e data/hora no formato dos campos <input type=date/time> */
+  ZF.pad2 = (n) => String(n).padStart(2, '0');
+  ZF.dateValue = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${ZF.pad2(d.getMonth() + 1)}-${ZF.pad2(d.getDate())}`; };
+  ZF.timeValue = (ts) => { const d = new Date(ts); return `${ZF.pad2(d.getHours())}:${ZF.pad2(d.getMinutes())}`; };
+  /** Destino de envio a partir dos dados da conversa (null se não tem telefone nem chatId) */
+  ZF.targetOf = (info) => (info && (info.phone || info.chatId)
+    ? { type: info.phone ? 'phone' : 'chat', phone: info.phone || '', chatId: info.chatId || null, name: info.name || '' }
+    : null);
 })();

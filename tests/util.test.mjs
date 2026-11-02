@@ -122,5 +122,13 @@ eq('chatKey', [
   ZF.chatKey({ chatId: '999@lid' }), ZF.chatKey({ name: 'Fulano' }), ZF.chatKey(null),
 ], ['p:5511987654321', 'g:120363@g.us', 'c:999@lid', 'n:Fulano', null]);
 
+/* ---------------- follow-up: datas fixas ---------------- */
+const dd = (y, m, d, h = 9, mi = 0) => new Date(y, m - 1, d, h, mi).getTime();
+eq('follow-up 1, +10 dias, +15 dias', ZF.followupDates(dd(2026, 11, 1, 0), [{}, { amount: 10, unit: 'days' }, { amount: 15, unit: 'days' }], '09:00'), [dd(2026, 11, 1), dd(2026, 11, 11), dd(2026, 11, 26)]);
+eq('follow-up semanas e meses (dia 31 vira o último)', ZF.followupDates(dd(2026, 1, 31), [{}, { amount: 2, unit: 'weeks' }, { amount: 1, unit: 'months' }]), [dd(2026, 1, 31), dd(2026, 2, 14), dd(2026, 3, 14)]);
+eq('follow-up mês com dia 31', ZF.addCalendar(dd(2026, 1, 31), 1, 'months'), dd(2026, 2, 28));
+eq('follow-up horário próprio na etapa', ZF.followupDates(dd(2026, 5, 1, 0), [{}, { amount: 7, unit: 'days', time: '14:30' }], '09:00'), [dd(2026, 5, 1), dd(2026, 5, 8, 14, 30)]);
+eq('follow-up virada de ano', ZF.followupDates(dd(2026, 12, 20), [{}, { amount: 30, unit: 'days' }]), [dd(2026, 12, 20), dd(2027, 1, 19)]);
+
 console.log(fails ? `\n${fails} FALHA(S)` : '\nTODOS OS TESTES PASSARAM');
 process.exit(fails ? 1 : 0);

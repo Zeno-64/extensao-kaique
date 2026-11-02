@@ -49,6 +49,7 @@
     text: 'Criar Mensagem de Texto', image: 'Criar Mensagem de Imagem', video: 'Criar Mensagem de Vídeo', audio: 'Criar Mensagem de Áudio',
     document: 'Criar Mensagem de Documento', label_add: 'Selecione uma etiqueta para adicionar', label_remove: 'Selecione uma etiqueta para remover',
   };
+  ZF.hashVars = { toHash, fromHash }; // outras telas (ex.: Follow-up) mostram as variáveis como #palavra também
   const mapText = (list, fn) => list.map((a) => {
     const o = { ...a };
     ['text', 'caption'].forEach((k) => { if (typeof o[k] === 'string') o[k] = fn(o[k]); });

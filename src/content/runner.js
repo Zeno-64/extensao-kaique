@@ -87,6 +87,7 @@
       return s.status === 'sent' ? list.filter((x) => x.id !== id) : list;
     });
     if (done && !result.missed) await store.addLog([store.logEntry(done, result)]);
+    if (done && done.followupId && !result.missed) await followupStepDone(done, !!result.ok);
     if (done && !result.ok && !result.missed) notify('Agendamento não enviado', `${done.target.name || ZF.fmtPhone(done.target.phone)}: ${result.error || 'falha'}`);
   }
 
@@ -162,7 +163,11 @@
     let res;
     try {
       // envia sem recarregar: direto (sem trocar de conversa) ou abrindo a conversa na interface
-      res = await wa.deliver(job.target, job.rendered, settings);
+      // follow-up com ações (imagem, documento, etiqueta, aba do CRM…): usa o mesmo executor das respostas rápidas
+      if (job.actions && job.actions.length) {
+        await ZF.runActions(job.actions, { target: { chatId: job.target.chatId, phone: job.target.phone, name: job.target.name }, vars: job.vars, isOpen: false });
+        res = { ok: true };
+      } else res = await wa.deliver(job.target, job.rendered, settings);
     } catch (e) {
       res = { ok: false, error: e.message || String(e) };
     }
@@ -229,12 +234,50 @@
     return false;
   }
 
+  /* ---------------- follow-up (sequências de agendamentos em dias fixos) ---------------- */
+  /** Antes de enviar uma etapa: confere se o follow-up segue ativo e se o contato respondeu. 'go' | 'done' (já tratado, não enviar) */
+  async function followupGate(s) {
+    const f = (await store.get('followups')).find((x) => x.id === s.followupId);
+    if (!f || f.status === 'canceled') { await store.update('schedules', (l) => l.filter((x) => x.id !== s.id)); return 'done'; }
+    if (f.status !== 'active') { await store.update('schedules', (l) => l.map((x) => (x.id === s.id ? { ...x, status: 'paused' } : x))); return 'done'; }
+    const isGroup = /@g\.us$/.test(s.target.chatId || '');
+    // botões de resposta: se o contato escrever a palavra de um deles, a sequência pausa (f.optOut = follow-ups antigos, só "PAUSAR")
+    const btns = f.buttons && f.buttons.length ? f.buttons : f.optOut ? [{ label: 'Pausar Lista VIP', keyword: 'PAUSAR' }] : [];
+    if (btns.length && s.step > 0 && !isGroup) {
+      const r = await wa.bridge('getMessages', { chatId: s.target.chatId || undefined, phone: s.target.phone || undefined, limit: 20 }, 15000).catch(() => null);
+      const since = f.lastSentAt || f.createdAt;
+      const pressed = (m) => btns.find((b) => new RegExp('\\b' + b.keyword.toLowerCase() + '\\b').test(ZF.normKey(m.text || '')));
+      const hit = r && r.ok && r.messages.filter((m) => !m.fromMe && m.t * 1000 > since).map(pressed).find(Boolean);
+      if (hit) {
+        const reason = `O contato respondeu: ${hit.label}`;
+        await store.updateItem('followups', f.id, (x) => ({ ...x, status: 'paused', pauseReason: reason }));
+        await store.update('schedules', (l) => l.map((x) => (x.followupId === f.id && x.status === 'pending' ? { ...x, status: 'paused' } : x)));
+        notify('Follow-up pausado', `${s.target.name || ZF.fmtPhone(s.target.phone)}: ${reason}. As próximas etapas ficaram pausadas.`);
+        return 'done';
+      }
+    }
+    return 'go';
+  }
+  /** Depois de cada etapa (enviada ou com falha): conta o andamento, guarda o horário do envio (base da detecção de resposta) e encerra o follow-up na última */
+  async function followupStepDone(s, ok) {
+    await store.updateItem('followups', s.followupId, (f) => ({
+      ...f,
+      processed: (f.processed || 0) + 1,
+      sentSteps: (f.sentSteps || 0) + (ok ? 1 : 0),
+      failedSteps: (f.failedSteps || 0) + (ok ? 0 : 1),
+      lastSentAt: ok ? Date.now() : f.lastSentAt,
+      status: f.status === 'active' && s.step >= (s.stepCount || 1) - 1 ? 'done' : f.status,
+    }));
+  }
+
   async function processSchedules() {
     const [schedules, settings] = [await store.get('schedules'), await store.settings()];
     const now = Date.now();
     const due = schedules.filter((s) => s.status === 'pending' && s.sendAt <= now).sort((a, b) => a.sendAt - b.sendAt);
     for (const s of due) {
-      if (settings.lateToleranceMin > 0 && now - s.sendAt > settings.lateToleranceMin * 60000) {
+      if (s.followupId && (await followupGate(s)) === 'done') return true;
+      // follow-up não perde horário: se o WhatsApp Web estava fechado, a etapa sai quando abrir
+      if (!s.followupId && settings.lateToleranceMin > 0 && now - s.sendAt > settings.lateToleranceMin * 60000) {
         await finishSchedule(s.id, { ok: false, missed: true, error: 'Horário perdido (WhatsApp Web estava fechado)' });
         return true;
       }
@@ -244,7 +287,7 @@
         return false;
       }
       const vars = { ...ZF.builtinVars(s.target), ...(s.vars || {}) };
-      await runJob({ kind: 'schedule', refId: s.id, target: s.target, blocks: s.blocks, vars });
+      await runJob({ kind: 'schedule', refId: s.id, target: s.target, blocks: s.blocks, actions: s.actions, vars });
       return true;
     }
     return false;
