@@ -212,7 +212,6 @@ svg { flex-shrink: 0; }
 }
 .zf-cat.collapsed .zf-cat-h { box-shadow: none; }
 .zf-cat-ico { color: var(--cat-dot); flex: none; }
-.zf-cat-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cat-dot); flex: none; }
 .zf-cat-h .zf-cat-name { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .zf-cat-h .zf-cat-more { width: 26px; height: 26px; }
 .zf-cat-caret { color: var(--muted); transition: transform .15s ease; flex: none; }
@@ -1015,3 +1014,53 @@ svg { flex-shrink: 0; }
 /* mídia aberta no WhatsApp: o painel sai da frente (continua aberto por baixo) */
 .zf.zf-wafront .zf-panel { display: none; }
 .zf-sched-add { display: flex; justify-content: center; padding: 12px 0 6px; }
+
+/* ---------- Follow-up ---------- */
+.zf-fu-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.zf-fu-win { min-height: 320px; position: relative; padding-bottom: 72px; }
+.zf-fu-top { margin-bottom: 8px; }
+.zf-fu-to { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13.5px; }
+.zf-fu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0; }
+.zf-fu-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.zf-fu-time { width: 110px; height: 30px; }
+.zf-fu-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+.zf-fu-when { display: block; }
+.zf-fu-gap .zf-pace { flex-wrap: wrap; }
+.zf-fu-pause { margin-top: 10px; align-items: flex-start; }
+.zf-fu-foot { position: absolute; right: 4px; bottom: 4px; }
+.zf-fu-row { gap: 10px; }
+.zf-fu-list { display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 560px) { .zf-fu-grid { grid-template-columns: 1fr; } }
+.zf-fu-gap .zf-pace { flex-wrap: wrap; justify-content: flex-start; }
+.zf-fu-gap .zf-pace > span:first-child { flex: 0 0 auto; }
+.zf-fu-gap .zf-select { width: auto; min-width: 100px; height: 28px; }
+.zf-fu-chips .zf-chip { transition: transform .12s ease, background-color .12s ease; }
+.zf-fu-chips .zf-chip:active { transform: scale(.96); }
+.zf-fu-tabs .zf-chip { transition: transform .12s ease, background-color .12s ease; }
+.zf-fu-tabs .zf-chip:active { transform: scale(.97); }
+
+/* unidade do intervalo (dias/semanas/meses): texto sempre visível */
+.zf-fu-gap .zf-select { height: 32px; min-width: 112px; padding: 0 26px 0 10px; font-size: 13.5px; line-height: 1.2; color: var(--text); background-color: var(--bg); }
+.zf-fu-gap .zf-pace .zf-pace-n { width: 56px; height: 32px; }
+.zf-fu-quick { margin: 8px 0 4px; }
+.zf-fu-win .zf-actcard { margin-top: 6px; }
+
+/* Follow-up: botões de adicionar etapa (tracejado, bem diferente de "Adicionar Ação"), de programar e caixa de pausa */
+.zf-fu-addstep { width: 100%; height: 44px; margin: 6px 0 12px; border: 2px dashed var(--accent); border-radius: 12px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background-color .15s ease, transform .12s ease; }
+.zf-fu-addstep:hover { background: var(--accent-soft); }
+.zf-fu-addstep:active { transform: scale(.985); }
+.zf-fu-send { height: 46px; padding: 0 22px; border: 0; border-radius: 999px; background: linear-gradient(135deg, #16b35e, #0e8a43); color: #fff; font-size: 14.5px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 6px 16px rgba(14, 138, 67, .38); transition: transform .12s ease, box-shadow .15s ease, filter .15s ease; }
+.zf-fu-send:hover { filter: brightness(1.06); box-shadow: 0 8px 20px rgba(14, 138, 67, .45); }
+.zf-fu-send:active { transform: scale(.97); }
+.zf-fu-pause { margin: 4px 0 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.zf-fu-pause .zf-check { font-weight: 700; }
+.zf-fu-foot { right: 8px; bottom: 6px; }
+@media (prefers-reduced-motion: reduce) { .zf-fu-addstep, .zf-fu-send { transition: none; } }
+.zf-fu-btnarea { margin-top: 8px; }
+.zf-fu-prev { margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font: inherit; font-size: 13px; white-space: pre-wrap; }
+
+/* raio das respostas rápidas ao lado do microfone */
+.zf-bolt { position: fixed; z-index: 30; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--accent); display: grid; place-items: center; cursor: pointer; pointer-events: auto; transition: background-color .12s ease, transform .12s ease; }
+.zf-bolt:hover { background: var(--accent-soft); }
+.zf-bolt:active { transform: scale(.92); }
+.zf-bolt.zf-nochat { display: none; }

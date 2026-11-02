@@ -24,6 +24,7 @@
     { key: 'kanban', icon: 'box', title: 'Quadro de atendimento (abas do CRM)', run: () => ZF.topbar && ZF.topbar.openKanban() },
     { key: 'crm', icon: 'contactCard', title: 'Contato e abas do CRM', view: 'crm' },
     { key: 'schedules', icon: 'calendarClock', title: 'Mensagens agendadas da conversa', run: () => ZF.openSchedulesWindow() },
+    { key: 'followup', icon: 'repeat', title: 'Follow-up (sequência de mensagens)', run: () => ZF.openFollowup() },
     { key: 'notes', icon: 'clipboardEdit', title: 'Notas', view: 'notes' },
     { key: 'reminders', icon: 'alarm', title: 'Lembretes', view: 'reminders' },
     { key: 'replies', icon: 'zap', title: 'Respostas rápidas', view: 'replies' },
@@ -37,6 +38,7 @@
     { key: 'bulk', icon: 'send', title: 'Envio em massa (Envio Rápido)', run: () => ZF.openQuickSend() },
     { key: 'ai', icon: 'sparkles', title: 'Assistente IA', view: 'ai' },
     { key: 'schedules', icon: 'calendar', title: 'Agendamentos', view: 'schedules' },
+    { key: 'followup', icon: 'repeat', title: 'Follow-up (sequência de mensagens)', run: () => ZF.openFollowup() },
     { key: 'replies', icon: 'zap', title: 'Respostas rápidas', view: 'replies' },
     { key: 'crm', icon: 'contactCard', title: 'Contato e abas do CRM', view: 'crm' },
     { key: 'notes', icon: 'clipboardEdit', title: 'Notas', view: 'notes' },
@@ -274,8 +276,18 @@
     while (p && !p.contains(b)) p = p.parentElement;
     if (!p || p === app || holds(p) || !app.contains(p)) return null;
     while (p.parentElement && p.parentElement !== app && !holds(p.parentElement)) p = p.parentElement;
+    // Status, Canais e outras telas inteiras do WhatsApp não são mídia: têm fundo claro (ou deixam a coluna de ícones de fora) e as barras ficam
+    if (!darkBackdrop(p) || p.getBoundingClientRect().left > ar.left + 8) return null;
     return p;
   };
+  /** Visualizador de foto/vídeo/documento e janelas escurecem o fundo: o próprio elemento ou um filho direto tem cor escura e visível */
+  const darkBackdrop = (el) => [el, ...el.children].some((n) => {
+    const m = getComputedStyle(n).backgroundColor.match(/[\d.]+/g);
+    if (!m || m.length < 3) return false;
+    const [r, g, b] = m.map(Number);
+    const a = m.length > 3 ? m[3] : 1;
+    return a >= 0.3 && (0.299 * r + 0.587 * g + 0.114 * b) < 100;
+  });
 
   ui.applySettings = (s) => {
     const w = Math.max(380, Math.min(600, Number(s.panelWidth) || 380));
@@ -306,6 +318,7 @@
     if (persist) store.saveSettings({ panelOpen: open });
     // o WhatsApp recalcula o layout quando a janela "muda de tamanho"
     window.dispatchEvent(new Event('resize'));
+    if (ui.followDock) ui.followDock();
   };
 
   ui.setTab = (name) => {
@@ -385,14 +398,31 @@
     ui.dockOpen = false;
     try { localStorage.removeItem('zapflow-dock-collapsed'); } catch (e) { /* ignora */ }
     ui.wrap.appendChild(ui.dock);
+    // raio das respostas rápidas, fixo no campo de mensagem, ao lado do microfone (à esquerda dele)
+    ui.bolt = h('button', {
+      class: 'zf-bolt zf-nochat', title: 'Respostas rápidas', 'aria-label': 'Respostas rápidas',
+      onclick: () => { if (ui.open && ui.current === 'replies') ui.toggle(false); else ui.openView('replies'); },
+    }, icon('zap', 19));
+    ui.wrap.appendChild(ui.bolt);
+    const placeBolt = (show) => {
+      const foot = show ? document.querySelector('#main footer') : null;
+      const btns = foot ? [...foot.querySelectorAll('button')].filter((b) => !ui.wrap.contains(b)).reverse() : [];
+      const mic = btns.find((b) => /voz|voice|enviar|send/i.test(b.getAttribute('aria-label') || '')) || btns[0];
+      ui.bolt.classList.toggle('zf-nochat', !mic);
+      if (!mic) return;
+      const r = mic.getBoundingClientRect();
+      // dentro do campo, à esquerda do microfone (à direita dele o campo termina e o botão ficaria para fora); centro a ~38px do centro do microfone
+      ui.bolt.style.left = Math.round(r.left - 36) + 'px';
+      ui.bolt.style.top = Math.round(r.top + r.height / 2 - 18) + 'px';
+    };
     // clicar em qualquer outro lugar (no WhatsApp ou no painel) desce as opções
     document.addEventListener('mousedown', (e) => {
       if (ui.dockOpen && !e.composedPath().includes(ui.dock)) ui.toggleDock(false);
     }, true);
-    window.addEventListener('resize', () => ui.placeDock());
-    // a conversa muda de tamanho sozinha (painel do contato, lista de conversas…): segue o canto
+    window.addEventListener('resize', () => ui.followDock());
+    // a conversa muda de tamanho sozinha (painel do contato, lista de conversas, resposta no campo…): segue o canto
     let lastCorner = '';
-    ZF.every(300, () => {
+    const dockTick = () => {
       // o botão só existe dentro de uma conversa aberta: some na tela inicial e quando
       // o WhatsApp abre algo por cima do chat (foto, vídeo, documento, janelas)
       const show = chatVisible();
@@ -401,13 +431,25 @@
         if (!show && ui.dockOpen) ui.toggleDock(false);
         if (show) lastCorner = '';
       }
+      placeBolt(show);
       if (!show) return;
       const c = chatCorner();
       const sig = c ? `${Math.round(c.left)}|${Math.round(c.right)}|${Math.round(c.bottom)}` : 'none';
       if (sig === lastCorner) return;
       lastCorner = sig;
       ui.placeDock();
-    });
+    };
+    ui.dockTick = dockTick;
+    ZF.every(150, dockTick);
+    /** Depois de abrir/fechar o painel ou mudar o tamanho: acompanha o layout quadro a quadro por ~0,8 s, para o botão não ficar para trás */
+    let followUntil = 0;
+    ui.followDock = () => {
+      const running = Date.now() < followUntil;
+      followUntil = Date.now() + 800;
+      if (running) return;
+      const step = () => { dockTick(); if (Date.now() < followUntil) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    };
   };
 
   /** Altura da barra de abas do topo (0 quando ela está escondida) */
@@ -427,8 +469,15 @@
     const foot = main.querySelector('footer');
     const fr = foot && foot.getBoundingClientRect();
     if (!fr || fr.height < 20) return null; // #main existe até na tela vazia ("Ligações"): sem campo de mensagem não há conversa aberta
-    const overFooter = fr && fr.height > 20 && fr.top > r.top;
-    return { left: r.left, right: r.right, bottom: window.innerHeight - (overFooter ? fr.top : r.bottom) };
+    // a resposta citada / o anexo ficam dentro do <footer>, mas "pendurados" para cima (posição absoluta): o <footer> não cresce.
+    // Por isso o topo do campo é o menor topo entre tudo o que está dentro dele.
+    let top = fr.top;
+    foot.querySelectorAll('div, span').forEach((e) => {
+      const b = e.getBoundingClientRect();
+      if (b.width > 0 && b.height > 0 && b.top < top && b.top > fr.top - 400) top = b.top;
+    });
+    const overFooter = top > r.top;
+    return { left: r.left, right: r.right, bottom: window.innerHeight - (overFooter ? top : r.bottom) };
   };
 
   /**
@@ -1048,7 +1097,7 @@
     renderChips();
     renderList();
     modalRef = ui.modal({
-      title,
+      title, global,
       global,
       body: h('div', {}, search, chipsEl, list, multi ? h('div', { style: { marginTop: '6px' } }, countEl) : null),
       onClose: () => { if (!answered) resolve(null); },
@@ -1116,7 +1165,7 @@
   };
 
   /** Escolher uma resposta rápida salva (para agendamentos e campanhas) */
-  ui.pickReply = ({ includeScripts = false, title = 'Escolher resposta rápida' } = {}) => new Promise(async (resolve) => {
+  ui.pickReply = ({ includeScripts = false, title = 'Escolher resposta rápida', global = false } = {}) => new Promise(async (resolve) => {
     const data = await store.getMany(['replies', 'categories']);
     const categories = data.categories;
     const replies = data.replies.map(ZF.migrateReply).filter((r) => includeScripts || r.kind !== 'script');
@@ -1139,7 +1188,7 @@
     search.addEventListener('input', renderList);
     renderList();
     modalRef = ui.modal({
-      title,
+      title, global,
       body: h('div', {}, h('div', { class: 'zf-field' }, search), list),
       onClose: () => { if (!answered) resolve(null); },
     });

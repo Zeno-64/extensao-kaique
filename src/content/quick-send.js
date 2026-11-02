@@ -17,7 +17,7 @@
   const SENT_LABEL = { sent: 'Enviado ✓', failed: 'Falhou', invalid: 'Sem WhatsApp' };
 
   ZF.openQuickSend = (defaults = {}) => {
-    if (document.querySelector('.zf-qk')) return;
+    if (ui.wrap.querySelector('.zf-qk')) return;
     const s = ui.settings || store.DEFAULT_SETTINGS;
     const selected = new Map(); // chave (telefone ou chatId) → contato
     let actionsEditor = null;

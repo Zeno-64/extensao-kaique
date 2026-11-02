@@ -294,12 +294,7 @@
   };
   const typeLabel = (s) => KIND_LABEL[s.kind] || ZF.TYPE_LABELS[ZF.messageType(s.blocks)] || 'Texto';
   const replyIcon = (r) => (r.kind === 'script' ? 'bot' : ZF.TYPE_ICONS[ZF.replyType(r)] || 'fileText');
-  const pad = (n) => String(n).padStart(2, '0');
-  const dateValue = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-  const timeValue = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  const targetOf = (info) => (info && (info.phone || info.chatId)
-    ? { type: info.phone ? 'phone' : 'chat', phone: info.phone || '', chatId: info.chatId || null, name: info.name || '' }
-    : null);
+  const { pad2: pad, dateValue, timeValue, targetOf } = ZF;
 
   /**
    * sched: agendamento a editar. copy: usa sched só como modelo (cria um novo — ex.: "editar" no relatório).
