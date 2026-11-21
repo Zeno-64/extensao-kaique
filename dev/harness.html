@@ -2,7 +2,7 @@
 <html><head><meta charset="utf-8"><title>WA mock</title>
 <style>
   body{margin:0;font-family:Segoe UI,sans-serif}
-  #app{position:fixed;inset:0;display:flex;background:#efeae2}
+  #app{position:absolute;inset:0;display:flex;background:#efeae2}
   #side{width:260px;background:#fff;border-right:1px solid #ddd}
   #side h3{margin:0;padding:14px;background:#f0f2f5}
   #main{flex:1;display:flex;flex-direction:column;min-width:0}
@@ -163,7 +163,7 @@ window.MOCK = { noMods: P.get('nomods') === '1', noLink: P.get('nolink') === '1'
     { id: { fromMe: true }, type: 'chat', body: 'Claro! Vou verificar os horários.', t: 2 },
     { id: { fromMe: false }, type: 'image', body: 'BASE64...', caption: 'meu exame', t: 3 },
   ]) });
-  mkChat('120363@g.us', 'Grupo Teste', { labels: ['2'] });
+  mkChat('120363@g.us', 'Grupo Teste', { labels: ['2'], msgs: col([{ id: { fromMe: true }, type: 'chat', body: 'Lembrete enviado (lido)', ack: 3, t: 4 }]) });
   mkChat('5511922222222@c.us', 'Pedro Alves', { labels: ['1'], unreadCount: 2, isFavorite: true, msgs: col([{ id: { fromMe: false }, type: 'chat', body: 'Qual o valor da consulta?', t: 5 }]) });
   mkChat('999888@lid', 'Contato LID', {});
   mkChat('5511900000001@c.us', 'Você (mensagem para mim)', {});

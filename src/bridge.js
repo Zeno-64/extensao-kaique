@@ -132,7 +132,7 @@
     const LABELS = { image: '📷 Foto', video: '🎥 Vídeo', ptt: '🎤 Áudio', audio: '🎵 Áudio', document: '📄 Documento', sticker: 'Figurinha', vcard: '👤 Contato', location: '📍 Localização' };
     let text = type === 'chat' ? msg.body : msg.caption || LABELS[type] || '';
     if (typeof text !== 'string') text = '';
-    return { text: text.slice(0, 160), fromMe: !!(msg.id && msg.id.fromMe), t: msg.t || 0 };
+    return { text: text.slice(0, 160), fromMe: !!(msg.id && msg.id.fromMe), ack: Number(msg.ack) || 0, t: msg.t || 0 };
   }
 
   function picOf(chat) {

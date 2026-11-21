@@ -534,6 +534,9 @@ svg { flex-shrink: 0; }
 .zf-cl-time { font-size: 12px; color: var(--muted); flex-shrink: 0; }
 .zf-cl-time.unread { color: #1fa855; font-weight: 600; }
 .zf-cl-prev { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zf-cl-ack { display: inline-block; vertical-align: -2px; margin-right: 3px; color: #8696a0; }
+.zf-cl-ack svg { display: block; }
+.zf-cl-ack.read { color: #53bdeb; }
 .zf-cl-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #25d366; color: #fff; font-size: 12px; font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
 .zf.dark .zf-cl-badge { color: #111b21; }
 .zf-cl-more { width: 24px; height: 24px; opacity: 0; }

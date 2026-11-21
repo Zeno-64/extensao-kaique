@@ -136,10 +136,6 @@
       'html.zapflow-bar #app{top:var(--zapflow-bar-h,40px)!important;height:calc(100% - var(--zapflow-bar-h,40px))!important;min-height:0!important;}',
       // os contêineres de dentro não podem esticar além do #app já encolhido
       'html.zapflow-push #app>div,html.zapflow-rail #app>div{min-width:0!important;max-width:100%!important;}',
-      // foto/vídeo/documento aberto no WhatsApp: o ZapFlow esmaece por baixo da camada dele
-      '#zapflow-root{transition:opacity .18s ease!important;}',
-      // some na hora (a mídia abre limpa) e volta esmaecendo quando ela fecha
-      'html.zapflow-front #zapflow-root{opacity:0!important;pointer-events:none!important;transition:none!important;}',
     ].join('\n');
     (document.head || document.documentElement).appendChild(layout);
 
@@ -206,13 +202,41 @@
    */
   const FRONT_CSS = { position: 'fixed', left: '0px', top: '0px', right: 'auto', bottom: 'auto', width: '100vw', height: '100vh', 'max-width': 'none', 'max-height': 'none', 'min-width': '0px', 'z-index': '2147483600' };
   let frontEl = null;
+  // o WhatsApp põe a interface toda num bloco com camada própria (.app-wrapper-web, z-index 100), que prende a camada da
+  // foto abaixo do ZapFlow. Enquanto a foto está aberta, esse bloco perde o z-index e a foto passa por cima do ZapFlow,
+  // que fica apagado por baixo dela como o resto do WhatsApp
+  let unstacked = [];
   const markFront = (el) => {
     el.setAttribute('data-zf-front', '');
     Object.entries(FRONT_CSS).forEach(([k, v]) => el.style.setProperty(k, v, 'important'));
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.position !== 'static' && cs.zIndex !== 'auto') { n.style.setProperty('z-index', 'auto', 'important'); unstacked.push(n); }
+    }
   };
   const unmarkFront = (el) => {
     el.removeAttribute('data-zf-front');
     Object.keys(FRONT_CSS).forEach((k) => el.style.removeProperty(k));
+    unstacked.forEach((n) => n.style.removeProperty('z-index'));
+    unstacked = [];
+  };
+  /**
+   * Ao fechar a foto, o WhatsApp encolhe a foto (0,5 s) e só depois de esperar 0,4 s apaga o fundo (mais 0,5 s). Essa
+   * animação com espera só aparece ao fechar: quando surge, tira a espera e roda o fechamento no dobro da velocidade.
+   */
+  const speedClose = (layer) => {
+    let fast = false;
+    const step = () => {
+      if (frontEl !== layer) return;
+      const anims = layer.getAnimations({ subtree: true });
+      if (!fast) fast = anims.some((a) => a.effect && a.effect.getTiming().delay >= 300);
+      if (fast) anims.forEach((a) => {
+        if (a.playbackRate !== 2) a.playbackRate = 2;
+        if (a.effect && a.effect.getTiming().delay > 0) a.effect.updateTiming({ delay: 0 });
+      });
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   };
   /** Jeito antigo (reserva): esconde barras e painel e devolve a tela toda ao WhatsApp */
   const setFallback = (front) => {
@@ -235,6 +259,7 @@
         markFront(layer);
         ui.closeMenu();
         if (ui.dockOpen) ui.toggleDock(false);
+        speedClose(layer);
       }
       html.classList.toggle('zapflow-front', !!layer);
     }
@@ -511,7 +536,8 @@
     const pts = [[r.left + 40, footY - 30], [r.left + r.width / 2, r.top + r.height / 2]];
     return pts.every(([x, y]) => {
       const el = document.elementsFromPoint(x, y).find((n) => n.id !== 'zapflow-root');
-      return !el || main.contains(el);
+      // foto/vídeo aberto (camada marcada) passa por cima do ZapFlow: o botão fica onde está, coberto, e não precisa reaparecer ao fechar
+      return !el || main.contains(el) || !!el.closest('[data-zf-front]');
     });
   };
 

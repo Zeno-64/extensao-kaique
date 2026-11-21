@@ -199,11 +199,17 @@
     const r = paneRect();
     Object.assign(overlayEl.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
     // a lista por aba/etiqueta só vale por cima da lista de conversas: some quando o WhatsApp abre outra tela por cima dela
-    overlayEl.style.display = ui.waFront || !chatListShown() ? 'none' : '';
+    // (Status, Canais). Foto/vídeo aberto não conta: a camada dele passa por cima do ZapFlow e a lista fica apagada por baixo.
+    if (ui.checkFront) ui.checkFront();
+    const media = document.documentElement.classList.contains('zapflow-front');
+    overlayEl.style.display = ui.waFront || (!media && !chatListShown()) ? 'none' : '';
   }
   ZF.every(250, positionOverlay);
   window.addEventListener('resize', () => setTimeout(positionOverlay, 50));
 
+  // vistos no desenho do WhatsApp (um e dois tracinhos)
+  const ACK1 = 'M10.91 3.316l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z';
+  const ACK2 = 'M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z';
   const initials = (name) => (String(name || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '#');
   const avatar = (c, size = 44) => {
     const d = c.chatId && details[c.chatId];
@@ -251,10 +257,11 @@
     if (!sel) return;
     const members = membersOf(sel).sort((a, b) => (b.t || 0) - (a.t || 0) || String(a.name).localeCompare(String(b.name)));
     // prévia da última mensagem e fotos (só das conversas mostradas)
-    const need = members.filter((c) => c.chatId && !details[c.chatId]).slice(0, 150).map((c) => c.chatId);
+    // sempre pede de novo: a última mensagem e os vistos (✓ → ✓✓ → azul) mudam; a foto já baixada fica
+    const need = members.filter((c) => c.chatId).slice(0, 150).map((c) => c.chatId);
     if (need.length) {
       const r = await ZF.wa.bridge('chatDetails', { chatIds: need }, 15000);
-      if (r && r.ok) Object.assign(details, r.details);
+      if (r && r.ok) Object.entries(r.details).forEach(([id, d]) => { details[id] = { ...d, pic: d.pic || (details[id] && details[id].pic) }; });
     }
     // fotos que o WhatsApp ainda não tinha baixado: busca em segundo plano e redesenha a lista quando chegarem
     const noPic = members.slice(0, 150).filter((c) => c.chatId && details[c.chatId] && !details[c.chatId].pic && !picsTried.has(c.chatId)).map((c) => c.chatId);
@@ -287,7 +294,11 @@
         h('div', { class: 'zf-cl-mid' },
           h('div', { class: 'zf-cl-top' }, h('span', { class: 'zf-cl-name' }, c.name || ZF.fmtPhone(c.phone) || 'Conversa'), h('span', { class: 'zf-cl-time' + (c.unread ? ' unread' : '') }, timeLabel(c.t))),
           h('div', { class: 'zf-cl-bottom' },
-            h('span', { class: 'zf-cl-prev' }, prev ? (prev.fromMe ? '✓ ' : '') + prev.text : c.phone ? ZF.fmtPhone(c.phone) : c.isGroup ? 'Grupo' : ''),
+            h('span', { class: 'zf-cl-prev' },
+              // ack do WhatsApp: 1 enviado (✓), 2 entregue (✓✓), 3+ lido (✓✓ azul)
+              prev && prev.fromMe ? h('span', { class: 'zf-cl-ack' + (prev.ack >= 3 ? ' read' : '') },
+                h('svg', { viewBox: '0 0 16 15', width: '16', height: '15' }, h('path', { fill: 'currentColor', d: prev.ack >= 2 ? ACK2 : ACK1 }))) : null,
+              prev ? prev.text : c.phone ? ZF.fmtPhone(c.phone) : c.isGroup ? 'Grupo' : ''),
             c.unread ? h('span', { class: 'zf-cl-badge' }, c.unread) : null,
             h('button', { class: 'zf-iconbtn zf-cl-more', title: 'Opções', onclick: (e) => { e.stopPropagation(); rowMenu(c, e.currentTarget); } }, icon('chevronDown', 16)))));
       list.appendChild(row);
