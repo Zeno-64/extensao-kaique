@@ -11,6 +11,8 @@
   const tb = { kanbanOpen: false, selected: null, chats: [], labels: [], labelsOk: false };
   let barEl = null, chipsEl = null, filterBtn = null, handleEl = null, overlayEl = null, kanbanEl = null;
   let details = {}; // chatId → { preview, pic }
+  const picsTried = new Set(); // conversas cuja foto já foi pedida ao servidor
+  let fetchingPics = false;
   let overlayQuery = '';
   let kanbanQuery = '';
   const settings = () => ui.settings || store.DEFAULT_SETTINGS;
@@ -184,12 +186,22 @@
     const top = settings().topBar !== false ? BAR_H + 8 : 8;
     return { left: 8, top, width: Math.min(420, window.innerWidth - 16), height: window.innerHeight - top - 8 };
   }
+  /** A lista de conversas do WhatsApp está à vista? (Status, Canais, Comunidades e a foto aberta cobrem a lista, que continua no DOM por baixo) */
+  const chatListShown = () => {
+    const pane = document.querySelector('#pane-side');
+    const r = pane && pane.getBoundingClientRect();
+    if (!r || r.width < 120 || r.height < 120) return true; // sem como conferir: mantém como estava
+    const el = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2).find((n) => n.id !== 'zapflow-root');
+    return !el || pane.contains(el);
+  };
   function positionOverlay() {
     if (!overlayEl) return;
     const r = paneRect();
     Object.assign(overlayEl.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    // a lista por aba/etiqueta só vale por cima da lista de conversas: some quando o WhatsApp abre outra tela por cima dela
+    overlayEl.style.display = ui.waFront || !chatListShown() ? 'none' : '';
   }
-  ZF.every(800, positionOverlay);
+  ZF.every(250, positionOverlay);
   window.addEventListener('resize', () => setTimeout(positionOverlay, 50));
 
   const initials = (name) => (String(name || '?').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '#');
@@ -243,6 +255,15 @@
     if (need.length) {
       const r = await ZF.wa.bridge('chatDetails', { chatIds: need }, 15000);
       if (r && r.ok) Object.assign(details, r.details);
+    }
+    // fotos que o WhatsApp ainda não tinha baixado: busca em segundo plano e redesenha a lista quando chegarem
+    const noPic = members.slice(0, 150).filter((c) => c.chatId && details[c.chatId] && !details[c.chatId].pic && !picsTried.has(c.chatId)).map((c) => c.chatId);
+    if (noPic.length && !fetchingPics) {
+      noPic.forEach((id) => picsTried.add(id));
+      fetchingPics = true;
+      ZF.wa.bridge('chatDetails', { chatIds: noPic, fetchPics: true }, 30000).then((r) => {
+        if (r && r.ok) Object.entries(r.details).forEach(([id, d]) => { if (d.pic && details[id]) details[id].pic = d.pic; });
+      }).catch(() => {}).finally(() => { fetchingPics = false; if (tb.selected) renderOverlay(true); });
     }
     if (!overlayEl) {
       overlayEl = h('div', { class: 'zf-chatlist zf-keep' });

@@ -276,18 +276,34 @@
     while (p && !p.contains(b)) p = p.parentElement;
     if (!p || p === app || holds(p) || !app.contains(p)) return null;
     while (p.parentElement && p.parentElement !== app && !holds(p.parentElement)) p = p.parentElement;
-    // Status, Canais e outras telas inteiras do WhatsApp não são mídia: têm fundo claro (ou deixam a coluna de ícones de fora) e as barras ficam
-    if (!darkBackdrop(p) || p.getBoundingClientRect().left > ar.left + 8) return null;
+    // Status, Canais e outras telas inteiras do WhatsApp não são mídia (sem fundo escuro/fixo por cima da janela, deixam a coluna de ícones de fora): as barras ficam
+    if (!backdropLike(a, p) || p.getBoundingClientRect().left > ar.left + 8) return null;
     return p;
   };
-  /** Visualizador de foto/vídeo/documento e janelas escurecem o fundo: o próprio elemento ou um filho direto tem cor escura e visível */
-  const darkBackdrop = (el) => [el, ...el.children].some((n) => {
-    const m = getComputedStyle(n).backgroundColor.match(/[\d.]+/g);
+  /**
+   * Visualizador de foto/vídeo/documento e janelas põem um fundo por cima do app: escuro (mídia, janelas) ou branco quase opaco
+   * (foto de perfil), sempre "fixo" e cobrindo a janela toda. Telas de página (Status, Canais) não são assim: deixam a coluna de ícones de fora.
+   */
+  const backdropNode = (n) => {
+    const cs = getComputedStyle(n);
+    const m = cs.backgroundColor.match(/[\d.]+/g);
     if (!m || m.length < 3) return false;
     const [r, g, b] = m.map(Number);
     const a = m.length > 3 ? m[3] : 1;
-    return a >= 0.3 && (0.299 * r + 0.587 * g + 0.114 * b) < 100;
-  });
+    if (a < 0.3) return false;
+    const dark = (0.299 * r + 0.587 * g + 0.114 * b) < 100;
+    const br = n.getBoundingClientRect();
+    const whole = cs.position === 'fixed' && br.left <= 1 && br.top <= 1 && br.width >= window.innerWidth - 2 && br.height >= window.innerHeight - 2;
+    return dark || whole;
+  };
+  /** Algum elemento do caminho entre o que está no topo (from) e a camada (layer) é um fundo desses? */
+  const backdropLike = (from, layer) => {
+    for (let n = from; n; n = n.parentElement) {
+      if (backdropNode(n)) return true;
+      if (n === layer) break;
+    }
+    return false;
+  };
 
   ui.applySettings = (s) => {
     const w = Math.max(380, Math.min(600, Number(s.panelWidth) || 380));

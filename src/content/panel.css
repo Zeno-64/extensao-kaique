@@ -1064,3 +1064,13 @@ svg { flex-shrink: 0; }
 .zf-bolt:hover { background: var(--accent-soft); }
 .zf-bolt:active { transform: scale(.92); }
 .zf-bolt.zf-nochat { display: none; }
+
+/* arrastar respostas e categorias para mudar a ordem */
+.zf-item[draggable="true"] { -webkit-user-drag: element; }
+.zf-item.dragging, .zf-cat.dragging { opacity: .4; }
+.zf-item.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+.zf-item.drop-after { box-shadow: 0 3px 0 var(--accent); }
+.zf-cat-h.drop-into { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.zf-cat-h.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+.zf-cat-h.drop-after { box-shadow: 0 3px 0 var(--accent); }
+.zf-cat-body.drop-into { background: var(--accent-soft); border-radius: 8px; }

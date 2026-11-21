@@ -381,6 +381,111 @@
     ui.toast('Excluído');
   }
 
+  /* ---------------- arrastar e soltar: ordem das respostas, troca de categoria e ordem das categorias ---------------- */
+  let drag = null; // { kind: 'reply' | 'cat', id }
+  /** Só dá para arrastar na lista agrupada por categoria (não na busca nem nos filtros por tipo/sem categoria/mais usadas) */
+  const dndOn = () => !state.q && !['type', 'uncat', 'top'].includes(state.filter);
+  const clearMarks = () => listEl && listEl.querySelectorAll('.drop-before, .drop-after, .drop-into, .dragging').forEach((e) => e.classList.remove('drop-before', 'drop-after', 'drop-into', 'dragging'));
+  const half = (e) => (e.offsetY < e.currentTarget.getBoundingClientRect().height / 2 ? 'before' : 'after');
+  /** Move a resposta para a categoria (null = sem categoria), antes de beforeId (ou no fim) */
+  async function dropReply(id, catId, beforeId) {
+    await store.update('replies', (list) => {
+      const r = list.find((x) => x.id === id);
+      if (!r || id === beforeId) return list;
+      r.categoryId = catId || null;
+      const sibs = sortReplies(list.filter((x) => x.id !== id && (x.categoryId || null) === (catId || null)));
+      const at = beforeId ? sibs.findIndex((x) => x.id === beforeId) : -1;
+      if (at < 0) sibs.push(r); else sibs.splice(at, 0, r);
+      sibs.forEach((x, i) => { x.order = i; });
+      return list;
+    });
+  }
+  async function dropCategory(id, beforeId) {
+    await store.update('categories', (list) => {
+      list.sort((a, b) => (a.order || 0) - (b.order || 0));
+      const from = list.findIndex((c) => c.id === id);
+      if (from < 0 || id === beforeId) return list;
+      const [c] = list.splice(from, 1);
+      const at = beforeId ? list.findIndex((x) => x.id === beforeId) : -1;
+      if (at < 0) list.push(c); else list.splice(at, 0, c);
+      list.forEach((x, i) => { x.order = i; });
+      return list;
+    });
+  }
+  /** Id da resposta que vem depois de r na mesma categoria (null se for a última) */
+  const nextInCat = (r) => {
+    const sibs = sortReplies(data.replies.filter((x) => (x.categoryId || null) === (r.categoryId || null)));
+    const i = sibs.findIndex((x) => x.id === r.id);
+    return i >= 0 && sibs[i + 1] ? sibs[i + 1].id : null;
+  };
+  function wireReplyDnD(row, r) {
+    row.draggable = true;
+    row.addEventListener('dragstart', (e) => { drag = { kind: 'reply', id: r.id }; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', r.title); } catch (err) { /* ignora */ } row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { drag = null; clearMarks(); });
+    row.addEventListener('dragover', (e) => {
+      if (!drag || drag.kind !== 'reply' || drag.id === r.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const h2 = half(e);
+      row.classList.toggle('drop-before', h2 === 'before');
+      row.classList.toggle('drop-after', h2 === 'after');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drop-before', 'drop-after'));
+    row.addEventListener('drop', ui.safe(async (e) => {
+      if (!drag || drag.kind !== 'reply') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const before = half(e) === 'before' ? r.id : nextInCat(r);
+      const id = drag.id;
+      clearMarks();
+      drag = null;
+      await dropReply(id, r.categoryId, before);
+    }));
+  }
+  function wireCategoryDnD(block, cat) {
+    const head = block.querySelector('.zf-cat-h');
+    const body = block.querySelector('.zf-cat-body');
+    if (cat) {
+      head.draggable = true;
+      head.addEventListener('dragstart', (e) => { drag = { kind: 'cat', id: cat.id }; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', cat.name); } catch (err) { /* ignora */ } block.classList.add('dragging'); });
+      head.addEventListener('dragend', () => { drag = null; clearMarks(); });
+    }
+    const nextCat = () => { const i = data.categories.findIndex((c) => c.id === cat.id); return data.categories[i + 1] ? data.categories[i + 1].id : null; };
+    head.addEventListener('dragover', (e) => {
+      if (!drag) return;
+      if (drag.kind === 'reply') { e.preventDefault(); head.classList.add('drop-into'); } else if (cat && drag.id !== cat.id) {
+        e.preventDefault();
+        const h2 = half(e);
+        head.classList.toggle('drop-before', h2 === 'before');
+        head.classList.toggle('drop-after', h2 === 'after');
+      }
+    });
+    head.addEventListener('dragleave', () => head.classList.remove('drop-before', 'drop-after', 'drop-into'));
+    head.addEventListener('drop', ui.safe(async (e) => {
+      if (!drag) return;
+      e.preventDefault();
+      const d = drag;
+      const h2 = half(e);
+      clearMarks();
+      drag = null;
+      if (d.kind === 'reply') {
+        await dropReply(d.id, cat ? cat.id : null, null);
+        if (cat && cat.collapsed) await store.updateItem('categories', cat.id, (c) => { c.collapsed = false; });
+      } else if (cat) await dropCategory(d.id, h2 === 'before' ? cat.id : nextCat());
+    }));
+    // soltar no espaço da categoria (ou na mensagem "Nada nesta categoria ainda") manda para o fim dela
+    body.addEventListener('dragover', (e) => { if (drag && drag.kind === 'reply') { e.preventDefault(); body.classList.add('drop-into'); } });
+    body.addEventListener('dragleave', (e) => { if (e.target === body) body.classList.remove('drop-into'); });
+    body.addEventListener('drop', ui.safe(async (e) => {
+      if (!drag || drag.kind !== 'reply') return;
+      e.preventDefault();
+      const id = drag.id;
+      clearMarks();
+      drag = null;
+      await dropReply(id, cat ? cat.id : null, null);
+    }));
+  }
+
   async function moveReply(r, dir) {
     await store.update('replies', (list) => {
       const siblings = sortReplies(list.filter((x) => (x.categoryId || null) === (r.categoryId || null)));
@@ -526,6 +631,7 @@
       }, icon('eye', 17)),
       h('button', { class: 'zf-iconbtn accent', title: isScript ? 'Enviar todas as etapas' : 'Executar na conversa aberta', onclick: stop(() => useReply(r, 'send', row)) }, icon('send', 17))));
 
+    if (dndOn()) wireReplyDnD(row, r);
     if (!state.expanded.has(r.id)) return row;
     return h('div', {}, row, previewOf(r));
   }
@@ -533,7 +639,7 @@
   function categoryBlock(cat, replies, forceOpen = false) {
     const collapsed = !forceOpen && cat && cat.collapsed;
     const toggle = () => cat && store.updateItem('categories', cat.id, (c) => { c.collapsed = !c.collapsed; });
-    return h('div', { class: 'zf-cat' + (collapsed ? ' collapsed' : ''), 'data-color': cat ? cat.color || 'gray' : 'none' },
+    const block = h('div', { class: 'zf-cat' + (collapsed ? ' collapsed' : ''), 'data-color': cat ? cat.color || 'gray' : 'none' },
       h('div', { class: 'zf-cat-h', onclick: toggle },
         icon('shapes', 16, 'zf-cat-ico'),
         h('span', { class: 'zf-cat-name' }, cat ? cat.name : 'Sem categoria'),
@@ -544,6 +650,8 @@
         cat ? icon('chevronUp', 16, 'zf-cat-caret') : null),
       h('div', { class: 'zf-cat-body' },
         replies.length ? sortReplies(replies).map((r) => replyRow(r)) : h('div', { class: 'zf-muted zf-small', style: { padding: '4px 2px' } }, 'Nada nesta categoria ainda.')));
+    if (dndOn()) wireCategoryDnD(block, cat);
+    return block;
   }
 
   function filteredReplies() {

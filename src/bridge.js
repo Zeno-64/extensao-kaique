@@ -457,16 +457,31 @@
     },
 
     /** Prévia da última mensagem e foto de algumas conversas (lista filtrada por aba/etiqueta) */
-    chatDetails({ chatIds = [] }) {
+    async chatDetails({ chatIds = [], fetchPics = false }) {
       const C = Chats();
       if (!C) return { ok: false, reason: 'unavailable' };
       const out = {};
+      const chats = {};
       chatIds.slice(0, 300).forEach((id) => {
         let chat = null;
         try { chat = C.get(id); } catch (e) { /* ignora */ }
         if (!chat) return;
+        chats[id] = chat;
         out[id] = { preview: previewOf(chat), pic: picOf(chat) };
       });
+      // fotos que o WhatsApp ainda não baixou (conversas fora da lista dele): pede ao servidor, aos poucos
+      if (fetchPics) {
+        const PP = pick('WAWebProfilePicThumbCollection', 'ProfilePicThumbCollection');
+        const missing = Object.keys(out).filter((id) => !out[id].pic);
+        const until = Date.now() + 20000;
+        for (let i = 0; PP && typeof PP.find === 'function' && i < missing.length && Date.now() < until; i += 8) {
+          await Promise.race([
+            Promise.allSettled(missing.slice(i, i + 8).map((id) => PP.find(chats[id].id))),
+            new Promise((r) => setTimeout(r, 4000)),
+          ]);
+        }
+        missing.forEach((id) => { out[id].pic = picOf(chats[id]); });
+      }
       return { ok: true, details: out };
     },
 
