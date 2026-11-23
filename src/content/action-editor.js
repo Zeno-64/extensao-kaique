@@ -282,6 +282,19 @@
       list: (a) => [field('Título', inp(a, 'title', 'Ex.: Escolha uma opção')), field('Opções (uma por linha)', ta(a, 'items', 'Agendar consulta\nRemarcar\nFalar com a nutricionista', 4)),
         h('div', { class: 'zf-grid2' }, field('Rodapé', inp(a, 'footer', '')), field('Numeração', sel(a, 'style', [{ value: 'numbers', label: '1. 2. 3.' }, { value: 'emoji', label: 'Emojis 1️⃣ 2️⃣' }, { value: 'bullets', label: 'Marcadores •' }])))],
       location: (a) => [field('Nome do local', inp(a, 'name', 'Ex.: Consultório')), field('Endereço', inp(a, 'address', 'Rua, número, bairro, cidade')), hint('Vai com o link do Google Maps.')],
+      followup: (a) => {
+        const wrap = h('div');
+        store.getMany(['followupPresets', 'followupCats']).then(({ followupPresets: ps, followupCats: cs }) => {
+          if (!ps.length) { wrap.replaceChildren(hint('Nenhuma pré-definição salva ainda. Crie uma em Follow-up → Programar → "Salvar como pré-definição".')); return; }
+          const cat = (p) => (cs.find((c) => c.id === p.categoryId) || {}).name;
+          const s = ui.select([{ value: '', label: '— Escolha a pré-definição —' },
+            ...ps.map((p) => ({ value: p.id, label: `${cat(p) ? cat(p) + ' · ' : ''}${p.name} (${p.steps.length} etapas)` }))], a.presetId || '');
+          s.addEventListener('change', () => { const p = ps.find((x) => x.id === s.value); a.presetId = p ? p.id : null; a.presetName = p ? p.name : ''; refreshSummary(a); });
+          wrap.replaceChildren(s);
+        });
+        return [field('Pré-definição do Follow-up', wrap), delayFields(a),
+          hint('Programa a sequência inteira para esta conversa: a 1ª mensagem sai no horário acima e as outras seguem os intervalos da pré-definição. Acompanhe em Follow-up → Em andamento.')];
+      },
 
       crm_add: (a) => [field('Aba do CRM', tabSelect(a))],
       crm_remove: (a) => [field('Aba do CRM', tabSelect(a))],
@@ -476,6 +489,7 @@
         if (['label_add', 'label_remove'].includes(a.type) && !a.labelId && !(a.labelName || '').trim()) err = 'escolha a etiqueta';
         if (a.type === 'transfer' && !ZF.normalizePhone(a.phone)) err = 'informe o WhatsApp do atendente';
         if (a.type === 'schedule' && !a.replyId && !(a.text || '').trim()) err = 'escreva a mensagem';
+        if (a.type === 'followup' && !a.presetId) err = 'escolha a pré-definição';
         if (a.type === 'pix') { try { ZF.pixPayload(a); } catch (e) { err = e.message; } }
         if (err) {
           open.add(a.id);

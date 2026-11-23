@@ -133,5 +133,27 @@ eq('itens de Enviar Mensagem', ZF.ACTION_GROUPS[0].types.map((t) => ZF.ACTION_TY
   ['Texto', 'Imagem', 'Vídeo', 'Áudio', 'Documentos', 'Pix', 'Convite para Grupo', 'Contato', 'Link com Banner', 'Figurinha', 'Lista']);
 eq('resumos sem erro', allTypes.every((t) => typeof ZF.actionSummary(ZF.newAction(t)) === 'string'), true);
 
+/* ---------------- ação Follow-up (pré-definição) ---------------- */
+{
+  const db = {
+    followups: [], schedules: [],
+    followupPresets: [{ id: 'p1', name: 'Lead novo', buttons: [{ label: 'Pausar', keyword: 'PAUSAR' }], steps: [
+      { amount: 0, unit: 'days', actions: [{ id: 'a', type: 'text', text: 'Oi {nome}' }] },
+      { amount: 7, unit: 'days', time: '14:00', actions: [{ id: 'b', type: 'text', text: 'Lembrete' }] },
+    ] }],
+  };
+  ZF.store = { get: async (k) => db[k], update: async (k, fn) => { db[k] = fn(db[k]) || db[k]; return db[k]; } };
+  ZF.runner = { tick: () => {} };
+  vm.runInContext(read('content/followup.js'), ctx);
+  const first = new Date(2026, 10, 24, 10, 30).getTime();
+  await ZF.startPresetFollowup('p1', { phone: '5511999990000', name: 'Ana' }, first, { horario: '10h' });
+  const s = db.schedules;
+  eq('follow-up da ação: 2 etapas agendadas', s.map((x) => [x.step, new Date(x.sendAt).getDate(), new Date(x.sendAt).getHours(), new Date(x.sendAt).getMinutes()]), [[0, 24, 10, 30], [1, 1, 14, 0]]);
+  eq('follow-up da ação: botões no fim e vars', [s[0].blocks[0].text.includes('PAUSAR'), s[0].vars.horario, db.followups[0].status, s[0].followupId === db.followups[0].id], [true, '10h', 'active', true]);
+  let e2 = null;
+  try { await ZF.startPresetFollowup('nao-existe', { phone: '1' }, first); } catch (e) { e2 = e.message; }
+  eq('follow-up da ação: pré-definição apagada', e2, 'Pré-definição de follow-up não encontrada');
+}
+
 console.log(fails ? `\n${fails} falha(s)` : '\nTodos os testes passaram');
 process.exit(fails ? 1 : 0);

@@ -859,6 +859,14 @@
         }, icon(g.icon, 18), h('span', {}, g.label), icon(isOpen ? 'chevronUp' : 'chevronDown', 18, 'zf-acc-chev')));
         if (isOpen) menu.appendChild(h('div', { class: 'zf-acc-body' }, g.items.map(menuButton)));
       });
+      if (!menu.isConnected) return;
+      // o grupo aberto deixa o menu mais alto: sobe o menu para caber na tela (o resto rola dentro dele) e mostra o grupo
+      const vh = window.innerHeight;
+      menu.style.maxHeight = vh - 16 + 'px';
+      const mr = menu.getBoundingClientRect();
+      if (mr.bottom > vh - 8) menu.style.top = Math.max(8, vh - 8 - mr.height) + 'px';
+      const body = menu.querySelector('.zf-acc-body');
+      if (body) body.lastElementChild.scrollIntoView({ block: 'nearest' });
     };
     render();
     placeMenu(menu, anchor, align);

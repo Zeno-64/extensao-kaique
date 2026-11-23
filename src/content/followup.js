@@ -35,6 +35,46 @@
   };
   const isMsg = (a) => !!(ZF.ACTION_TYPES[a.type] && ZF.ACTION_TYPES[a.type].msg);
 
+  /** Grava os follow-ups (um por contato) e um agendamento por etapa. dates: horário de cada etapa */
+  ZF.scheduleFollowups = async ({ targets, steps: src, buttons = [], dates: ds, defaultTime = '09:00', vars = {} }) => {
+    const notice = buttons.length ? buttonsText(buttons) : '';
+    const steps = src.map((s, i) => {
+      const actions = notice ? withNotice(stepActions(s), notice) : stepActions(s);
+      return { ...ZF.clone(s), actions, amount: i > 0 ? Math.max(1, Number(s.amount) || 1) : 0, blocks: ZF.actionsToBlocks(actions.filter(isMsg)) };
+    });
+    const now = Date.now();
+    const fus = [];
+    const scheds = [];
+    targets.forEach((t) => {
+      const id = ZF.uid();
+      fus.push({
+        id, createdAt: now, target: { ...t }, status: 'active', buttons: ZF.clone(buttons), defaultTime,
+        startAt: ds[0], dates: ds, sentSteps: 0, lastSentAt: null, steps: steps.map((s) => ({ amount: s.amount, unit: s.unit, time: s.time, actions: s.actions })),
+      });
+      steps.forEach((s, i) => scheds.push({
+        id: ZF.uid(), createdAt: now, history: [], title: `Follow-up · etapa ${i + 1}/${steps.length}`, kind: null,
+        followupId: id, step: i, stepCount: steps.length,
+        target: { ...t }, blocks: s.blocks, actions: s.actions, vars: { ...vars }, sendAt: ds[i], repeat: 'none', everyDays: null,
+        anchorDay: new Date(ds[i]).getDate(), status: 'pending', lastError: null, updatedAt: now,
+      }));
+    });
+    await store.update('followups', (l) => [...fus, ...l]);
+    await store.update('schedules', (l) => { l.push(...scheds); return l; });
+    ZF.runner.tick();
+  };
+
+  /** Ação "Follow-up" das respostas rápidas: programa uma pré-definição para a conversa; a 1ª etapa sai em `firstAt` */
+  ZF.startPresetFollowup = async (presetId, target, firstAt, vars = {}) => {
+    const p = (await store.get('followupPresets')).find((x) => x.id === presetId);
+    if (!p || !p.steps || !p.steps.length) throw ZF.userError('Pré-definição de follow-up não encontrada');
+    const d = new Date(firstAt);
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const steps = p.steps.map((s, i) => ({ ...s, time: i === 0 ? time : s.time || '' }));
+    const dates = ZF.followupDates(firstAt, steps, time);
+    await ZF.scheduleFollowups({ targets: [target], steps, buttons: p.buttons || [], dates, defaultTime: time, vars });
+    return p;
+  };
+
   let opening = false;
   ZF.openFollowup = async (opts = {}) => {
     if (opening || ui.wrap.querySelector('.zf-fu-win')) return; // o 2º clique chega antes da janela existir
@@ -291,38 +331,16 @@
         if (err) throw ZF.userError(`Etapa ${i + 1}: ${err}`);
       }
       if (form.buttonsOn && !form.buttons.length) throw ZF.userError('Escolha pelo menos um botão ou desmarque a opção.');
-      const notice = form.buttonsOn ? buttonsText(form.buttons) : '';
-      const steps = form.steps.map((s, i) => {
-        const actions = notice ? withNotice(s.actions, notice) : s.actions;
-        return { ...ZF.clone(s), actions, amount: i > 0 ? Math.max(1, Number(s.amount) || 1) : 0, blocks: ZF.actionsToBlocks(actions.filter(isMsg)) };
-      });
+      const buttons = form.buttonsOn ? form.buttons : [];
       let vars = {};
-      const missing = [...new Set(steps.flatMap((s) => ZF.findVarsInActions(s.actions)))].filter((v) => !ZF.BUILTIN_VARS.includes(v));
+      const missing = [...new Set(form.steps.flatMap((s) => ZF.findVarsInActions(s.actions)))].filter((v) => !ZF.BUILTIN_VARS.includes(v));
       if (missing.length) {
         const extra = await ui.askVars(missing, 'Campos das mensagens', { global: true });
         if (!extra) return;
         vars = extra;
       }
-      const now = Date.now();
-      const fus = [];
-      const scheds = [];
-      form.targets.forEach((t) => {
-        const id = ZF.uid();
-        fus.push({
-          id, createdAt: now, target: { ...t }, status: 'active', buttons: form.buttonsOn ? ZF.clone(form.buttons) : [], defaultTime: form.time,
-          startAt: ds[0], dates: ds, sentSteps: 0, lastSentAt: null, steps: steps.map((s) => ({ amount: s.amount, unit: s.unit, time: s.time, actions: s.actions })),
-        });
-        steps.forEach((s, i) => scheds.push({
-          id: ZF.uid(), createdAt: now, history: [], title: `Follow-up · etapa ${i + 1}/${steps.length}`, kind: null,
-          followupId: id, step: i, stepCount: steps.length,
-          target: { ...t }, blocks: s.blocks, actions: s.actions, vars: { ...vars }, sendAt: ds[i], repeat: 'none', everyDays: null,
-          anchorDay: new Date(ds[i]).getDate(), status: 'pending', lastError: null, updatedAt: now,
-        }));
-      });
-      await store.update('followups', (l) => [...fus, ...l]);
-      await store.update('schedules', (l) => { l.push(...scheds); return l; });
-      ZF.runner.tick();
-      ui.toast(`Follow-up programado: ${steps.length} etapas para ${form.targets.length} contato(s)`, 'ok', 4000);
+      await ZF.scheduleFollowups({ targets: form.targets, steps: form.steps, buttons, dates: ds, defaultTime: form.time, vars });
+      ui.toast(`Follow-up programado: ${form.steps.length} etapas para ${form.targets.length} contato(s)`, 'ok', 4000);
       view = 'running';
       render();
     }

@@ -23,6 +23,7 @@
     sticker: { label: 'Figurinha', icon: 'sticker', msg: true, file: 'image/*', def: () => ({}) },
     list: { label: 'Lista', icon: 'list', msg: true, def: () => ({ title: '', items: '', footer: 'Responda com o número da opção.', style: 'numbers' }) },
     location: { label: 'Localização', icon: 'mapPin', msg: true, def: () => ({ name: '', address: '' }) },
+    followup: { label: 'Follow-up (pré-definição)', icon: 'repeat', def: () => ({ presetId: null, presetName: '', ...hm(1, 'days', '09:00') }) },
 
     crm_add: { label: 'Adicionar a um CRM', icon: 'folderPlus', def: () => ({ tabId: null }) },
     crm_remove: { label: 'Remover de um CRM', icon: 'folderMinus', def: () => ({ tabId: null }) },
@@ -55,7 +56,7 @@
     finish: { label: 'Finalizar atendimento', icon: 'flag', def: () => ({ text: '', clearTabs: true, markRead: true, archive: false }) },
   };
   const GROUPS = [
-    { key: 'msg', label: 'Enviar Mensagem', icon: 'messageSquare', types: ['text', 'image', 'video', 'audio', 'document', 'pix', 'group_invite', 'contact', 'link', 'sticker', 'list', 'location'] },
+    { key: 'msg', label: 'Enviar Mensagem', icon: 'messageSquare', types: ['text', 'image', 'video', 'audio', 'document', 'pix', 'group_invite', 'contact', 'link', 'sticker', 'list', 'location', 'followup'] },
     { key: 'crm', label: 'Aba do CRM', icon: 'folderArrow', types: ['crm_add', 'crm_remove', 'crm_clear'] },
     { key: 'label', label: 'Etiquetas', icon: 'label', types: ['label_add', 'label_remove', 'label_clear'] },
     { key: 'timer', label: 'Temporizadores', icon: 'timer', types: ['wait', 'typing', 'recording'] },
@@ -238,7 +239,7 @@
   };
 
   /* ---------------- variáveis ---------------- */
-  const NOT_TEMPLATE = new Set(['id', 'type', 'fileId', 'mime', 'size', 'chatId', 'labelId', 'tabId', 'unit', 'time', 'keyType', 'style', 'url', 'key', 'replyId', 'link']);
+  const NOT_TEMPLATE = new Set(['id', 'type', 'fileId', 'mime', 'size', 'chatId', 'labelId', 'tabId', 'unit', 'time', 'keyType', 'style', 'url', 'key', 'replyId', 'link', 'presetId', 'presetName']);
   const templateEntries = (a) => Object.entries(a).filter(([k, v]) => typeof v === 'string' && !NOT_TEMPLATE.has(k) && !(TYPES[a.type] && TYPES[a.type].file && k === 'name'));
   ZF.findVarsInActions = (actions = []) => {
     const out = new Set();
@@ -303,6 +304,7 @@
       case 'link': return cut(a.title || a.url) || 'Informe o link';
       case 'list': return `${cut(a.title, 40) || 'Lista'} • ${String(a.items || '').split('\n').filter((x) => x.trim()).length} opção(ões)`;
       case 'location': return cut(a.name || a.address) || 'Informe o endereço';
+      case 'followup': return a.presetId ? `${cut(a.presetName, 40) || 'Pré-definição'} • 1ª mensagem ${ZF.delayLabel(a)}` : 'Escolha a pré-definição';
       case 'crm_add': case 'crm_remove': return `Aba: ${tab(a.tabId)}`;
       case 'crm_clear': return 'Tira a conversa de todas as abas';
       case 'label_add': case 'label_remove': return `Etiqueta: ${a.labelName || (names.label && names.label(a.labelId)) || 'escolha a etiqueta'}`;
@@ -423,6 +425,10 @@
             });
             break;
           }
+          case 'followup':
+            if (!a.presetId) throw ZF.userError('Escolha a pré-definição de follow-up');
+            await ZF.startPresetFollowup(a.presetId, target, ZF.delayTs(a), customVars);
+            break;
           case 'reminder': {
             const dueAt = ZF.delayTs(a);
             await store.update('reminders', (arr) => {
